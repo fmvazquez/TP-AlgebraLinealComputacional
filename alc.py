@@ -69,25 +69,23 @@ def calculaLU(A):
     cant_op = 0
     M=A.shape[0]
     N=A.shape[1]
-    Ac = A.copy()
+    Ac = A.copy().astype(np.float32)
     
     if M!=N:
         print('Matriz no cuadrada')
         return
     
-    for i in range(N):
-        piv = Ac[i][i]
-        for j in range(i+1, N):
+    for j in range(N):
+        piv = Ac[j][j]
+        for i in range(j+1, N):
             
-            mult = Ac[j][i] / piv
+            mult = Ac[i][j] / piv
             cant_op+=1
-            for k in range(i, N):
-                Ac[j][k] -= mult * Ac[i][k]
+            for k in range(j+1, N):
+                Ac[i][k] -= mult * Ac[j][k]
                 cant_op+=2
-            Ac[j][i] = mult
+            Ac[i][j] = mult
     
-    print(Ac)
-
     L = np.eye(N,N)
     U = np.eye(N,N)
 

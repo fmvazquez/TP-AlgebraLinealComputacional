@@ -8,14 +8,13 @@ def calculaCholesky(A,atol=1e-10):
         print("No se puede hacer Cholesky, no existe desc LU")
         return
     L, U, _ = res
-    print(A)
-    print(L)
-    print(U)
     D = np.zeros((N,N))
     for i in range(N):
         D[i,i] = U[i,i]
         for j in range(i, N):
             U[i,j] = U[i,j] / U[i,i]
+
+    
 
 A = np.array([
     [25,15,-5],
