@@ -24,5 +24,8 @@ A = np.array([
 
 calculaCholesky(A)
 
+def pinvEcuacionesNormales(L, Y):
+    return
+
 
 
