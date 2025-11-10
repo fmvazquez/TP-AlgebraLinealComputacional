@@ -127,32 +127,33 @@ def res_tri(L,b,inferior=True):
     return res
 
 # Labo06
+
 def metpot2k(A, tol=1e-15, K=1000):
-    """
-    A: matriz de tamaño n x n
-    tol: tolerancia en la diferencia entre un paso y el siguiente de la estimación del autovector
-    K: número máximo de iteraciones a realizar
-
-    Retorna:
-    v: autovector estimado
-    lambda: autovalor estimado
-    k: número de iteraciones realizadas
-    """
-
     N = A.shape[0]
 
-    v = np.random.rand(N)
-    v = v / norma(v,2)
+    # Caso matriz nula → todos los autovalores son 0
+    if norma(A, 2) < tol:
+        v = np.random.rand(N)
+        v = v / norma(v, 2)
+        v = np.expand_dims(v, axis=0).T
+        return v, 0.0, 0
 
-    v_monio = aplicTrans(A, v) 
-    v_monio = v_monio / norma(v_monio,2)
+    # vector inicial
+    v = np.random.rand(N)
+    v = v / norma(v, 2)
+
+    v_monio = aplicTrans(A, v)
+    v_monio = v_monio / norma(v_monio, 2)
 
     e = prodPunto(v_monio, v)
     k = 0
+    stuck = 0
+
     while abs(e - 1) > tol and k < K:
+
         v = v_monio
 
-        # Aplicar fA dos veces sobre v
+        # doble aplicación
         w = aplicTrans(A, v)
         w = w / norma(w, 2)
 
@@ -161,15 +162,23 @@ def metpot2k(A, tol=1e-15, K=1000):
 
         e = prodPunto(v_monio, v)
         k += 1
-    
+
+        # Si está oscilando por autovalores iguales → reinicio
+        if abs(e) < 0.05:
+            stuck += 1
+            if stuck > 5:
+                v = np.random.rand(N)
+                v = v / norma(v, 2)
+                stuck = 0
+
     v_monio = np.expand_dims(v_monio, axis=0).T
-
     lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
-    eps = e-1
 
-    return v_monio, lambd, eps
+    return v_monio, lambd, e-1
+
 
 def diagRH(A, tol=1e-15, K=1000):
+
     """
     A: Matriz simétrica de tamaño n x n
     tol: Tolerancia en la diferencia entre un paso y el siguiente de la estimación del autovector
@@ -182,37 +191,122 @@ def diagRH(A, tol=1e-15, K=1000):
     Si la matriz A no es simétrica, debe retornar None
     """
 
-    if (A.shape[0] != A.shape[1]):
+    if A.shape[0] != A.shape[1]:
         print("Matriz no cuadrada")
-        return
-    
+        return None
+
     N = A.shape[0]
 
+    # 1x1 → trivial
+    if N == 1:
+        return np.eye(1), A.copy()
 
+    # autovector dominante
     v1, lambda1, _ = metpot2k(A, tol, K)
+
+    # e1
     e1 = np.zeros((N,1))
-    e1[0][0] = 1
+    e1[0][0] = 1.0
 
+    # vector de Householder
+    u = e1 - v1
+    nu = norma(np.squeeze(u), 2)
 
-    factor = 2 / (norma(np.squeeze(e1 - v1),2)**2)
-    Hv1 = np.eye(N) - factor * prodMat(e1-v1, (e1-v1).T)
+    # si v1 ≈ e1 → no hacer Householder (H=I)
+    if nu < 1e-12:
+        Hv1 = np.eye(N)
+    else:
+        factor = 2.0 / (nu * nu)
+        Hv1 = np.eye(N) - factor * prodMat(u, u.T)
+
+    # Caso N=2 → ya diagonaliza
     if N == 2:
         S = Hv1
         D = prodMat(prodMat(Hv1, A), Hv1.T)
-    else: 
-        B = prodMat(prodMat(Hv1, A), Hv1.T)
-        Ahat = B[1:N,1:N]
-        Shat, Dhat = diagRH(Ahat, tol=1e-15, K=1000)
-        D = np.zeros((N, N))
-        D[0][0] = lambda1
-        for i in range(1,N):
-            for j in range(1,N):
-                D[i][j] = Dhat[i-1][j-1]
-        Hprod = np.zeros((N, N))
-        Hprod[0][0] = 1
-        for i in range(1,N):
-            for j in range(1,N):
-                Hprod[i][j] = Shat[i-1][j-1]
-        S = prodMat(Hv1, Hprod)
-    
+        return S, D
+
+    # Construir B = H A H^T
+    B = prodMat(prodMat(Hv1, A), Hv1.T)
+
+    # Submatriz sin la primera fila/col
+    Ahat = B[1:N, 1:N]
+
+    # Recurrencia
+    Shat, Dhat = diagRH(Ahat, tol, K)
+
+    # Construyo D grande
+    D = np.zeros((N, N))
+    D[0][0] = lambda1
+    for i in range(1, N):
+        for j in range(1, N):
+            D[i][j] = Dhat[i-1][j-1]
+
+    # Extiendo Shat a N×N
+    Hprod = np.zeros((N, N))
+    Hprod[0][0] = 1.0
+    for i in range(1, N):
+        for j in range(1, N):
+            Hprod[i][j] = Shat[i-1][j-1]
+
+    # matriz de autovectores final
+    S = prodMat(Hv1, Hprod)
+
     return S, D
+
+
+#labo08
+
+def multMat(A, x):
+    A = np.array(A)
+    x = np.array(x)
+    res = np.zeros(A.shape[0])
+    for i in range(A.shape[0]):
+        tot = 0
+        for k in range(A.shape[1]):
+            tot += A[i, k] * x[k]
+        res[i] = tot
+    return res
+
+
+def svd_reducida (A, k ='max' , tol=1e-15):
+    
+    n = A.shape[0]
+    m = A.shape[1]
+    
+    if n < m: 
+        M = prodMat(A, A.T)
+    else:
+        M = prodMat(A.T, A)
+    S, D = diagRH(M, tol)
+    
+    aval = []
+    avec = []
+    for i in range (D.shape[0]):
+        if D[i,i] > tol:
+            aval.append(np.sqrt(D[i,i]))
+            avec.append(S[:, i])
+    
+    # Aplica k si tiene limite
+    if k != 'max':
+        aval = aval[:k]
+        avec = avec[:k]
+    
+    
+    r = len(aval)
+    S = np.array(aval)
+    U = np.zeros((n, r))
+    V = np.zeros((m,r))
+    
+    if n < m:
+        for i in range(r):
+            U[:, i] = avec[i] / norma(avec[i])
+            V_moño = multMat(A.T,U[:, i])
+            V[:, i] = V_moño / aval[i]
+    else:
+        for i in range(r):
+            V[:, i] = avec[i] / norma(avec[i])
+            U_moño = multMat(A,V[:, i])
+            U[:,i] = U_moño / aval[i]
+    
+    
+    return U, S, V
