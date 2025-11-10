@@ -48,7 +48,28 @@ def prodPunto(v, w):
 
     return res
 
+# Labo01
+def error(x,y):
+    """
+    Recibe dos numeros x e y, y calcula el error de aproximar x usando y en float64
+    """
+    return np.abs(np.float64(x) - np.float64(y))
+
+def matricesIguales(A,B):
+    """    
+    Devuelve True si ambas matrices son iguales y False en otro caso.
+    """
+    A = np.array(A)
+    B = np.array(B)
+
+    if A.shape != B.shape: return False
+    for i in range(A.shape[0]):
+        for j in range(A.shape[1]):
+            if error(A[i][j], B[i][j]) > np.finfo(np.float64).eps: return False
+    return True
+
 # Labo03
+# BIEN
 def norma(x, p):
     sum = 0
     if p == "inf": 
@@ -59,31 +80,34 @@ def norma(x, p):
 
 # Labo04
 def calculaLU(A):
+    # BIEN SEGUN TESTS NUESTROS
     """
     Calcula la factorización LU de la matriz A y retorna las matrices L y U, 
     junto con el número de operaciones realizadas. 
 
     En caso de que la matriz no pueda factorizarse, retorna None.
     """
-
+    
     cant_op = 0
     M=A.shape[0]
     N=A.shape[1]
-    Ac = A.copy().astype(np.float32)
+    Ac = A.copy().astype(np.float64)
     
     if M!=N:
-        print('Matriz no cuadrada')
-        return
+        return None
+    
+    finfo = np.finfo(Ac.dtype)
     
     for j in range(N):
         piv = Ac[j][j]
+        if abs(piv) < finfo.eps:  # pivote nulo o casi nulo
+            return None
         for i in range(j+1, N):
-            
             mult = Ac[i][j] / piv
-            cant_op+=1
+            cant_op += 1
             for k in range(j+1, N):
                 Ac[i][k] -= mult * Ac[j][k]
-                cant_op+=2
+                cant_op += 2
             Ac[i][j] = mult
     
     L = np.eye(N,N)
@@ -96,35 +120,92 @@ def calculaLU(A):
 
     return L, U, cant_op
 
+# Funcion auxiliar para res_tri
+def suma(A, X, i, inferior): 
+    res = 0
+    n = A.shape[0]
+    if inferior:
+        for j in range(i):
+            res += A[i,j]*X[j]
+    else:
+        for j in range(i+1, n):
+            res += A[i,j]*X[j]
+    return res
 
-
-
-def res_tri(L,b,inferior=True):
+def res_tri(A, b, inferior=True): 
     """
     Resuelve el sistema Lx = b, donde L es triangular. 
 
     Se puede indicar si es triangular inferior o superior usando el argumento 
     `inferior` (por defecto se asume que es triangular inferior).
     """
-    N = L.shape[0]
-    if L.shape[0] != b.shape[0]:
-        print("Dimensiones no compatibles en res_tri")
-        return
-    if L.shape[0] != L.shape[1]:
-        print("Matriz no cuadrada en res_tri")
-        return
-    
-    res = b.copy()
-    inter_fila = range(N)
-    if (not inferior): inter_fila = reversed(inter_fila)
+    X = np.zeros(b.shape)
+    n = X.shape[0]
+    if inferior:
+        for i in range(n):
+            X[i] = (b[i] - suma(A, X, i, inferior=True)) / A[i,i]
+    else:
+        for i in range(n-1, -1, -1):
+            X[i] = (b[i] - suma(A, X, i, inferior=False)) / A[i,i]
+    return X
 
-    for i in inter_fila:
-        if (inferior): inter_col = range(i+1)
-        else: inter_col = range(N-1, i-1, -1)
-        for j in inter_col:
-            if i == j: res[i] /= L[i, i]
-            else: res[i] -= L[i, j] * res[j]    
-    return res
+def res_tri_matricial(A, B, inferior=True): 
+    """
+    Resuelve el sistema L X = B, donde L es triangular. 
+
+    Se puede indicar si es triangular inferior o superior usando el argumento 
+    `inferior` (por defecto se asume que es triangular inferior).
+    """
+    N, M = B.shape
+    X = np.zeros((N, M))
+    
+    # Resolver para cada columna de B independientemente
+    for j in range(M):
+        X[:, j] = res_tri(A, B[:, j], inferior=inferior)
+    
+    return X
+
+def inversa(A):
+    L, U, _ = calculaLU(A)
+    A_inv = np.zeros(A.shape)
+    I = np.eye(A.shape[0])
+
+    for i in range(len(A)):
+        y = res_tri(L, I[:, i], inferior=True) # Ly = I
+        x = res_tri(U, y, inferior=False) # Ux = y
+        A_inv[:, i] = x
+    return A_inv
+
+def calculaCholesky(A):
+    """
+    Calcula la factorización de Cholesky A = L * L.T
+    usando la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
+    
+    Retorna L, D, U (donde U = L.T).
+    """
+
+    # Verificar si es SDP
+
+    A = np.array(A, dtype=np.float32)
+
+    # Factorización LU
+    lu_res = calculaLU(A)
+
+    L, U, _ = lu_res
+
+    # Armamos la diagonal D
+    N = A.shape[0]
+    D = np.zeros((N, N))
+    for i in range(N):
+        D[i, i] = U[i, i]
+    
+    L_chol = np.zeros(L.shape)
+    for i in range(N):
+        for j in range(i+1):
+            L_chol[i, j] = L[i, j] * np.sqrt(D[j, j])
+
+    return L_chol
+
 
 # Labo06
 def metpot2k(A, tol=1e-15, K=1000):
@@ -216,3 +297,32 @@ def diagRH(A, tol=1e-15, K=1000):
         S = prodMat(Hv1, Hprod)
     
     return S, D
+
+# NUEVAS 
+
+def fullyConectedCholesky(X, Y):
+    N, M = X.shape
+    if N == M:
+        W = prodMat(Y, inversa(X))
+    else:
+        if N > M:
+            Xh = prodMat(X.T, X)
+            B = X.T
+        else:
+            Xh = prodMat(X, X.T)
+            B = X.T
+        L = calculaCholesky(Xh)
+
+        # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
+        # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
+        # Depende el caso tengo que transponer o no U
+
+        V = res_tri_matricial(L, B)
+        U = res_tri_matricial(L.T, V)
+
+        if N > M: W = U
+        else: W = U.T
+
+    return W
+
+
