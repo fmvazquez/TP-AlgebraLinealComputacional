@@ -41,9 +41,7 @@ def prodPunto(v, w):
         print("No se puede calcular el prodcuto punto")
         return
     
-    res = 0
-    for k in range(v.shape[0]):
-        res += v[k] * w[k]
+    res = np.sum(v*w)
 
     return res
 
@@ -59,14 +57,11 @@ def aplicTrans(A, v):
     res = np.zeros((A.shape[0]))
 
     for i in range(res.shape[0]):
-        tot = 0            
-        for k in range(A.shape[1]):
-            tot += A[i, k] * v[k]
-        res[i] = tot
+        res[i] = np.sum(A[i,:]*v)
 
     return res
 
-def metpot2k(A, tol=1e-15, K=1000):
+def metpot2k(A, tol=1e-15, K=50):
     N = A.shape[0]
 
     # Caso matriz nula → todos los autovalores son 0
@@ -85,7 +80,7 @@ def metpot2k(A, tol=1e-15, K=1000):
 
     e = prodPunto(v_monio, v)
     k = 0
-    stuck = 0
+    #stuck = 0
     
     print('1 va por aca, tdv no entro al while')
     
@@ -103,13 +98,13 @@ def metpot2k(A, tol=1e-15, K=1000):
         e = prodPunto(v_monio, v)
         k += 1
 
-        # Si está oscilando por autovalores iguales → reinicio
-        if abs(e) < 0.05:
-            stuck += 1
-            if stuck > 5:
-                v = np.random.rand(N)
-                v = v / norma(v, 2)
-                stuck = 0
+        # # Si está oscilando por autovalores iguales → reinicio
+        # if abs(e) < 0.05:
+        #     stuck += 1
+        #     if stuck > 5:
+        #         v = np.random.rand(N)
+        #         v = v / norma(v, 2)
+        #         stuck = 0
 
     v_monio = np.expand_dims(v_monio, axis=0).T
     # lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
@@ -117,75 +112,100 @@ def metpot2k(A, tol=1e-15, K=1000):
 
     return v_monio, lambd, e-1
 
-def diagRH(A, tol=1e-15, K=1000):
+import time
 
+def diagRH(A, tol=1e-15, K=50, nivel=1):
+    """
+    Diagonalización recursiva con Householder
+    
+    Args:
+        A: matriz a diagonalizar
+        tol: tolerancia
+        K: iteraciones máximas
+        nivel: nivel de recursión (para tracking)
+    """
+    # Marca el inicio de esta iteración
+    inicio = time.time()
+    
     if A.shape[0] != A.shape[1]:
         print("Matriz no cuadrada")
         return None
-
+    
     N = A.shape[0]
-
+    
     # 1x1 → trivial
     if N == 1:
+        fin = time.time()
+        tiempo_transcurrido = fin - inicio
+        minutos = int(tiempo_transcurrido // 60)
+        segundos = tiempo_transcurrido % 60
+        print(f"Nivel {nivel} (N=1, caso base): {minutos}m {segundos:.3f}s")
         return np.eye(1), A.copy()
-
+    
     # autovector dominante
-    v1, lambda1, _ = metpot2k(A, tol, K)
-
+    v1, lambda1, _ = metpot2k(A, tol, 50)
+    
     # e1
-    e1 = np.zeros((N,1))
+    e1 = np.zeros((N, 1))
     e1[0][0] = 1.0
-
+    
     # vector de Householder
     u = e1 - v1
     nu = norma(np.squeeze(u), 2)
     
-    print('2 llego aca')
-
+    print(f'Nivel {nivel}: procesando matriz {N}x{N}')
+    
     # si v1 ≈ e1 → no hacer Householder (H=I)
     if nu < 1e-12:
         Hv1 = np.eye(N)
     else:
         factor = 2.0 / (nu * nu)
-        # Hv1 = np.eye(N) - factor * prodMat(u, u.T)
-        Hv1 = np.eye(N) - factor * u@u.T
-
+        Hv1 = np.eye(N) - factor * u @ u.T
+    
     # Caso N=2 → ya diagonaliza
     if N == 2:
         S = Hv1
-        # D = prodMat(prodMat(Hv1, A), Hv1.T)
-        D = Hv1@A@Hv1.T
+        D = Hv1 @ A @ Hv1.T
+        
+        fin = time.time()
+        tiempo_transcurrido = fin - inicio
+        minutos = int(tiempo_transcurrido // 60)
+        segundos = tiempo_transcurrido % 60
+        print(f"Nivel {nivel} (N=2, caso base): {minutos}m {segundos:.3f}s")
+        
         return S, D
-
+    
     # Construir B = H A H^T
-    # B = prodMat(prodMat(Hv1, A), Hv1.T)
-    B = Hv1@A@Hv1.T
-
+    B = Hv1 @ A @ Hv1.T
+    
     # Submatriz sin la primera fila/col
     Ahat = B[1:N, 1:N]
-
-    # Recurrencia
-    Shat, Dhat = diagRH(Ahat, tol, K)
-
+    
+    # Recurrencia (pasa el nivel incrementado)
+    Shat, Dhat = diagRH(Ahat, tol, K, nivel + 1)
+    
     # Construyo D grande
     D = np.zeros((N, N))
-    D[0][0] = lambda1
-    for i in range(1, N):
-        for j in range(1, N):
-            D[i][j] = Dhat[i-1][j-1]
-
+    D[0, 0] = lambda1
+    D[1:, 1:] = Dhat
+    
     # Extiendo Shat a N×N
     Hprod = np.zeros((N, N))
-    Hprod[0][0] = 1.0
-    for i in range(1, N):
-        for j in range(1, N):
-            Hprod[i][j] = Shat[i-1][j-1]
-
+    Hprod[0, 0] = 1.0
+    Hprod[1:, 1:] = Shat
+    
     # matriz de autovectores final
-    # S = prodMat(Hv1, Hprod)
-    S= Hv1@Hprod
-
+    S = Hv1 @ Hprod
+    
+    # Calcula y muestra el tiempo al terminar esta iteración
+    fin = time.time()
+    tiempo_transcurrido = fin - inicio
+    minutos = int(tiempo_transcurrido // 60)
+    segundos = tiempo_transcurrido % 60
+    print(f"Nivel {nivel} (N={N}): {minutos}m {segundos:.3f}s")
+    
     return S, D
+
 
 def svd_reducida (A, k ='max' , tol=1e-15):
     
@@ -222,20 +242,19 @@ def svd_reducida (A, k ='max' , tol=1e-15):
     if n < m:
         for i in range(r):
             U[:, i] = avec[i] / norma(avec[i])
-            # V_moño = multMat(A.T,U[:, i])
-            V_moño = A.T@U[:, i]
+            V_moño = aplicTrans(A.T,U[:, i])
             V[:, i] = V_moño / aval[i]
     else:
         for i in range(r):
             V[:, i] = avec[i] / norma(avec[i])
-            # U_moño = multMat(A,V[:, i])
-            U_moño = A@V[:, i]
+            U_moño = aplicTrans(A,V[:, i])
             U[:,i] = U_moño / aval[i]
     
     
     return U, S, V
 
 def fullyConnectedSVD(X,Y):
+    print('hola')
     U, S, V = svd_reducida(X)
     
     # #convertir S a S+
