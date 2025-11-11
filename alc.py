@@ -42,11 +42,7 @@ def prodPunto(v, w):
         print("No se puede calcular el prodcuto punto")
         return
     
-    res = 0
-    for k in range(v.shape[0]):
-        res += v[k] * w[k]
-
-    return res
+    return np.sum(v * w)
 
 # Labo01
 def error(x,y):
@@ -71,12 +67,20 @@ def error(x,y):
 # Labo03
 # BIEN
 def norma(x, p):
-    sum = 0
+    suma = 0
     if p == "inf": 
         return np.abs(np.array(x)).max()
-    for xi in x:
-        sum += np.abs(xi)**p
-    return sum ** (1/p)
+    xabs = np.abs(x)
+    suma = np.sum(xabs**p)
+    
+    return suma ** (1/p)
+
+def normaliza(X):
+    for i in range(X.shape[0]):
+        normav = norma(X[i], p=2)
+        if (normav == 0): continue
+        X[i] /= normav
+    return X
 
 # Labo04
 def calculaLU(A):
@@ -175,6 +179,51 @@ def inversa(A):
         x = res_tri(U, y, inferior=False) # Ux = y
         A_inv[:, i] = x
     return A_inv
+
+def QR_con_GS(A):
+    Q = np.zeros(A.shape)
+    R = np.zeros((A.shape[1],A.shape[1])) #cambio: el tamaño de R es cols A x cols A, no es el de A.
+    At_norm = normaliza(A.T)
+    for j in range (Q.shape[0]):
+        Q[j,0] = At_norm[0][j]
+
+    print("vectores normalizados")
+    R[0,0] = norma(A.T[0], p=2)
+
+    for j in range (1, Q.shape[1]): #cambio: acá itero sobre columnas de Q (Q.shape[1]), no sobre filas (Q.shape[0]).
+        print(j)
+        q = A[:, j]
+        for k in range (0, j):
+            R[k,j] = prodPunto((Q[:,k].T), q)
+            q = q - R[k,j]*Q[:,k]
+        R[j,j] = norma(q, p=2)
+        Q[:,j] = normaliza(np.expand_dims(q, axis=0))
+    print("Q shape:", Q.shape)
+    print("R shape:", R.shape)
+
+    return Q, R
+
+def QR_con_HH(A, tol=1e-12):
+    A = A.astype(float)
+    m, n = A.shape
+    R = A.copy()
+    Q = np.eye(m)
+
+    for k in range(n):
+        x = R[k:, k]
+        e = np.zeros_like(x)
+        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+        u = x - e
+        if norma(u,p=2) < tol:
+            continue
+        u = u / norma(u,p=2)
+        H = np.eye(m - k) - 2 * np.outer(u, u)
+        H_moño = np.eye(m)
+        H_moño[k:, k:] = H
+        R = H_moño @ R
+        Q = Q @ H_moño
+
+    return Q, R
 
 def calculaCholesky(A):
     """
@@ -379,12 +428,12 @@ def svd_reducida (A, k ='max' , tol=1e-15):
     
     if n < m:
         for i in range(r):
-            U[:, i] = avec[i] / norma(avec[i])
+            U[:, i] = avec[i] / norma(avec[i], p=2)
             V_moño = multMat(A.T,U[:, i])
             V[:, i] = V_moño / aval[i]
     else:
         for i in range(r):
-            V[:, i] = avec[i] / norma(avec[i])
+            V[:, i] = avec[i] / norma(avec[i], p=2)
             U_moño = multMat(A,V[:, i])
             U[:,i] = U_moño / aval[i]
     
@@ -392,6 +441,32 @@ def svd_reducida (A, k ='max' , tol=1e-15):
     return U, S, V
  
 # NUEVAS 
+
+def cargarDataset(carpeta):
+    train_cats = np.load(f'{carpeta}/train/cats/efficientnet_b3_embeddings.npy')
+    train_dogs = np.load(f'{carpeta}/train/dogs/efficientnet_b3_embeddings.npy')
+
+    val_cats = np.load(f'{carpeta}/val/cats/efficientnet_b3_embeddings.npy')
+    val_dogs = np.load(f'{carpeta}/val/dogs/efficientnet_b3_embeddings.npy')
+
+    X_train = np.zeros((train_cats.shape[0], train_cats.shape[1] + train_dogs.shape[1]))
+    X_train[:, :train_cats.shape[1]] = train_cats
+    X_train[:, train_cats.shape[1]:] = train_dogs
+
+    X_val = np.zeros((val_cats.shape[0], val_cats.shape[1] + val_dogs.shape[1]))
+    X_val[:, :val_cats.shape[1]] = val_cats
+    X_val[:, val_cats.shape[1]:] = val_dogs
+
+    Y_train = np.zeros((2, train_cats.shape[1] + train_dogs.shape[1]))  # ✓ (2, 3000)
+    Y_train[0, :train_cats.shape[1]] = 1  # Primera fila = gatos [1,0]
+    Y_train[1, train_cats.shape[1]:] = 1  # Segunda fila = perros [0,1]
+
+    Y_val = np.zeros((2, val_cats.shape[1] + val_dogs.shape[1]))  # ✓ (2, 2000)
+    Y_val[0, :val_cats.shape[1]] = 1   # Primera fila = gatos
+    Y_val[1, val_cats.shape[1]:] = 1   # Segunda fila = perros
+
+    return X_train, Y_train, X_val, Y_val
+
 
 def matricesIguales(A, B, tol=None):
     """    
@@ -483,3 +558,25 @@ def fullyConectedCholesky(X, Y):
         W = prodMat(Y, pX)
 
     return W, pX
+
+def pesosConQR(X, Y, metodo):
+  if metodo == "GS":
+    print("Calcular QR")
+    Q, R = QR_con_GS(X.T)
+  elif metodo == "HH":
+    Q, R = QR_con_HH(X.T)
+  else: 
+    print("Metodo incorrecto")
+    return
+
+  #Se tiene que VR^T=Q. Por tanto, el núm. de columnas de V es el de filas de R^T. Y su núm. de filas es el de filas de Q.
+  V = np.zeros((Q.shape[0],R.T.shape[0]))
+  #Además, RV^T = Q^T.
+  V = V.T
+  print("Resolviendo sistema")
+  for j in range(Q.T.shape[1]):
+    V[:,j] = res_tri(R, (Q.T)[:, j], inferior=False)
+  V = V.T
+ 
+  W = Y@V
+  return W, V
