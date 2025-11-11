@@ -17,27 +17,35 @@ calculaCholesky(A)
 def fullyConectedCholesky(X, Y):
     N, M = X.shape
     if N == M:
+        pX = inversa(X)
         W = prodMat(Y, inversa(X))
     else:
         if N > M:
-            Xh = prodMat(X.T, X)
+            print("Caso (a) N > M")
+            Xh = prodMat(X.T, X) 
             B = X.T
         else:
+            print("Caso (b) N < M")
             Xh = prodMat(X, X.T)
-            B = X.T
+            B = X
+        print("Calculo de Cholesky")
         L = calculaCholesky(Xh)
 
         # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
         # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
         # Depende el caso tengo que transponer o no U
-
+        print("Resolviendo sistemas triangulares .1")
         V = res_tri_matricial(L, B)
+        print("Resolviendo sistemas triangulares .2")
         U = res_tri_matricial(L.T, V)
 
-        if N > M: W = U
-        else: W = U.T
+        if N > M: pX = U
+        else: pX = U.T
 
-    return W
+        print("Calculando W")
+        W = prodMat(Y, pX)
+
+    return W, pX
 
 def esPseudoInversa(X, pX, tol=1e-8):
     """

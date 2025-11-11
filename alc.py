@@ -55,18 +55,18 @@ def error(x,y):
     """
     return np.abs(np.float64(x) - np.float64(y))
 
-def matricesIguales(A,B):
-    """    
-    Devuelve True si ambas matrices son iguales y False en otro caso.
-    """
-    A = np.array(A)
-    B = np.array(B)
+# def matricesIguales(A,B):
+#     """    
+#     Devuelve True si ambas matrices son iguales y False en otro caso.
+#     """
+#     A = np.array(A)
+#     B = np.array(B)
 
-    if A.shape != B.shape: return False
-    for i in range(A.shape[0]):
-        for j in range(A.shape[1]):
-            if error(A[i][j], B[i][j]) > np.finfo(np.float64).eps: return False
-    return True
+#     if A.shape != B.shape: return False
+#     for i in range(A.shape[0]):
+#         for j in range(A.shape[1]):
+#             if error(A[i][j], B[i][j]) > np.finfo(np.float64).eps: return False
+#     return True
 
 # Labo03
 # BIEN
@@ -186,7 +186,7 @@ def calculaCholesky(A):
 
     # Verificar si es SDP
 
-    A = np.array(A, dtype=np.float32)
+    A = np.array(A, dtype=np.float64)
 
     # Factorización LU
     lu_res = calculaLU(A)
@@ -393,27 +393,93 @@ def svd_reducida (A, k ='max' , tol=1e-15):
  
 # NUEVAS 
 
+def matricesIguales(A, B, tol=None):
+    """    
+    Devuelve True si ambas matrices son iguales y False en otro caso.
+    """
+    A = np.array(A)
+    B = np.array(B)
+    
+    # Si no se especifica tolerancia, usar eps
+    if tol is None:
+        tol = np.finfo(np.float64).eps
+
+    if A.shape != B.shape: return False
+    for i in range(A.shape[0]):
+        for j in range(A.shape[1]):
+            if error(A[i][j], B[i][j]) > tol: return False
+    return True
+
+def esPseudoInversa(X, pX, tol=1e-8):
+    """
+    Cheque que se cumplan las las cuatro condiciones de Moore-Penrose
+    1. A @ A⁺ @ A = A
+    2. A⁺ @ A @ A⁺ = A⁺
+    3. (A @ A⁺)* = A @ A⁺
+    4. (A⁺ @ A)* = A⁺ @ A
+    """
+
+    # # (1)
+    # cond1 = matricesIguales(prodMat(X, prodMat(pX, X)), X)
+    # if not cond1: return False 
+    # # (2)
+    # cond2 = matricesIguales(prodMat(pX, prodMat(X, pX)), pX)
+    # if not cond2: return False 
+    # # (3)
+    # cond3 = matricesIguales(prodMat(X, pX).T, prodMat(X, pX))
+    # if not cond3: return False 
+    # # (4)
+    # cond4 =  matricesIguales(prodMat(pX, X).T, prodMat(pX, X))
+    # if not cond4: return False 
+
+    # (1)
+    cond1 = matricesIguales(X @ pX @ X, X, tol=tol)
+    if not cond1: return False 
+    
+    # (2)
+    cond2 = matricesIguales(pX @ X @ pX, pX, tol=tol)
+    if not cond2: return False 
+    
+    # (3)
+    cond3 = matricesIguales((X @ pX).T, X @ pX, tol=tol)
+    if not cond3: return False 
+    
+    # (4)
+    cond4 = matricesIguales((pX @ X).T, pX @ X, tol=tol)
+    if not cond4: return False
+
+    return True
+
+
 def fullyConectedCholesky(X, Y):
     N, M = X.shape
     if N == M:
-        W = prodMat(Y, inversa(X))
+        pX = inversa(X)
+        W = prodMat(Y, pX)
     else:
         if N > M:
-            Xh = prodMat(X.T, X)
+            print("Caso (a) N > M")
+            Xh = prodMat(X.T, X) 
             B = X.T
         else:
+            print("Caso (b) N < M")
             Xh = prodMat(X, X.T)
-            B = X.T
+            B = X
+        print("Calculo de Cholesky")
         L = calculaCholesky(Xh)
 
         # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
         # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
         # Depende el caso tengo que transponer o no U
+        print("Resolviendo sistemas triangulares .1")
+        V = res_tri_matricial(L, B, inferior=True)
+        print("Resolviendo sistemas triangulares .2")
+        U = res_tri_matricial(L.T, V, inferior=False)
 
-        V = res_tri_matricial(L, B)
-        U = res_tri_matricial(L.T, V)
+        if N > M: pX = U
+        else: pX = U.T
 
-        if N > M: W = U
-        else: W = U.T
+        print("Calculando W")
+        W = prodMat(Y, pX)
 
-    return W
+    return W, pX
