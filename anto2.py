@@ -89,7 +89,9 @@ def metpot2k(A, tol=1e-15, K=150):
 
     v_monio = np.expand_dims(v_monio, axis=0).T
     # lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
-    lambd = (v_monio.T@A@v_monio) 
+    lambd = (v_monio.T@A@v_monio)
+
+    return v_monio, lambd, e-1
 
 def diagRH(A, tol=1e-15, K=150, nivel=1):
     """
