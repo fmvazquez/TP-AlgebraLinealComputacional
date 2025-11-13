@@ -118,17 +118,26 @@ def diagRH(A, tol=1e-15, K=150, nivel=1):
     e1[0][0] = 1.0
     
     # vector de Householder
-    u = e1 - v1
-    nu = norma(np.squeeze(u), 2)
+    # u = e1 - v1
+    # nu = norma(np.squeeze(u), 2)
     
     print(f'Nivel {nivel}: procesando matriz {N}x{N}')
     
     # si v1 ≈ e1 → no hacer Householder (H=I)
+    # if nu < 1e-12:
+    #     Hv1 = np.eye(N)
+    # else:
+    #     factor = 2.0 / (nu * nu)
+    #     Hv1 = np.eye(N) - factor * u @ u.T
+
+    u = v1 - e1
+    nu = norma(u)
     if nu < 1e-12:
         Hv1 = np.eye(N)
     else:
-        factor = 2.0 / (nu * nu)
-        Hv1 = np.eye(N) - factor * u @ u.T
+        u = u / nu
+        Hv1 = np.eye(N) - 2 * (u @ u.T)
+
     
     # Caso N=2 → ya diagonaliza
     if N == 2:
