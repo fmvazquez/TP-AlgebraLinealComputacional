@@ -36,10 +36,6 @@ def prodPunto(v, w):
     """
     Asume que el vector es columna
     """
-
-    if v.shape[0] != w.shape[0]:
-        print("No se puede calcular el prodcuto punto")
-        return
     
     res = np.sum(v*w)
 
@@ -50,10 +46,6 @@ def aplicTrans(A, v):
     """
     Asume que el vector es columna
     """
-
-    if A.shape[1] != v.shape[0]:
-        print("No se puede aplicar la matriz al vector")
-        return
     res = np.zeros((A.shape[0]))
 
     for i in range(res.shape[0]):
@@ -61,7 +53,7 @@ def aplicTrans(A, v):
 
     return res
 
-def metpot2k(A, tol=1e-15, K=50):
+def metpot2k(A, tol=1e-15, K=150):
     N = A.shape[0]
 
     # Caso matriz nula → todos los autovalores son 0
@@ -80,9 +72,6 @@ def metpot2k(A, tol=1e-15, K=50):
 
     e = prodPunto(v_monio, v)
     k = 0
-    #stuck = 0
-    
-    print('1 va por aca, tdv no entro al while')
     
     while abs(e - 1) > tol and k < K:
 
@@ -98,23 +87,11 @@ def metpot2k(A, tol=1e-15, K=50):
         e = prodPunto(v_monio, v)
         k += 1
 
-        # # Si está oscilando por autovalores iguales → reinicio
-        # if abs(e) < 0.05:
-        #     stuck += 1
-        #     if stuck > 5:
-        #         v = np.random.rand(N)
-        #         v = v / norma(v, 2)
-        #         stuck = 0
-
     v_monio = np.expand_dims(v_monio, axis=0).T
     # lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
-    lambd = (v_monio.T@A@v_monio) [0][0]
+    lambd = (v_monio.T@A@v_monio) 
 
-    return v_monio, lambd, e-1
-
-import time
-
-def diagRH(A, tol=1e-15, K=50, nivel=1):
+def diagRH(A, tol=1e-15, K=150, nivel=1):
     """
     Diagonalización recursiva con Householder
     
@@ -124,26 +101,15 @@ def diagRH(A, tol=1e-15, K=50, nivel=1):
         K: iteraciones máximas
         nivel: nivel de recursión (para tracking)
     """
-    # Marca el inicio de esta iteración
-    inicio = time.time()
-    
-    if A.shape[0] != A.shape[1]:
-        print("Matriz no cuadrada")
-        return None
     
     N = A.shape[0]
     
     # 1x1 → trivial
     if N == 1:
-        fin = time.time()
-        tiempo_transcurrido = fin - inicio
-        minutos = int(tiempo_transcurrido // 60)
-        segundos = tiempo_transcurrido % 60
-        print(f"Nivel {nivel} (N=1, caso base): {minutos}m {segundos:.3f}s")
         return np.eye(1), A.copy()
     
     # autovector dominante
-    v1, lambda1, _ = metpot2k(A, tol, 50)
+    v1, lambda1, _ = metpot2k(A, tol, 150)
     
     # e1
     e1 = np.zeros((N, 1))
@@ -166,12 +132,6 @@ def diagRH(A, tol=1e-15, K=50, nivel=1):
     if N == 2:
         S = Hv1
         D = Hv1 @ A @ Hv1.T
-        
-        fin = time.time()
-        tiempo_transcurrido = fin - inicio
-        minutos = int(tiempo_transcurrido // 60)
-        segundos = tiempo_transcurrido % 60
-        print(f"Nivel {nivel} (N=2, caso base): {minutos}m {segundos:.3f}s")
         
         return S, D
     
@@ -196,13 +156,6 @@ def diagRH(A, tol=1e-15, K=50, nivel=1):
     
     # matriz de autovectores final
     S = Hv1 @ Hprod
-    
-    # Calcula y muestra el tiempo al terminar esta iteración
-    fin = time.time()
-    tiempo_transcurrido = fin - inicio
-    minutos = int(tiempo_transcurrido // 60)
-    segundos = tiempo_transcurrido % 60
-    print(f"Nivel {nivel} (N={N}): {minutos}m {segundos:.3f}s")
     
     return S, D
 
@@ -254,7 +207,6 @@ def svd_reducida (A, k ='max' , tol=1e-15):
     return U, S, V
 
 def fullyConnectedSVD(X,Y):
-    print('hola')
     U, S, V = svd_reducida(X)
     
     # #convertir S a S+
@@ -262,7 +214,7 @@ def fullyConnectedSVD(X,Y):
     #     S[i] = 1/S[i]
     
     VS= np.zeros(V.shape)
-    r = np.zeros[1]
+    r = VS.shape[1]
     # en vez de pasar a S+ divido cada Vi por S[i] que es como multiplicar por 1/S[i] (inversa de sigma)
     for i in range(r):
         VS[:, i] = V[:, i]/S[i]
@@ -270,4 +222,4 @@ def fullyConnectedSVD(X,Y):
     X_ps = VS@U.T
     W = Y@X_ps
     
-    return W
+    return W, X_ps
