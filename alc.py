@@ -495,34 +495,34 @@ def esPseudoInversa(X, pX, tol=1e-8):
     4. (A⁺ @ A)* = A⁺ @ A
     """
 
-    # # (1)
-    # cond1 = matricesIguales(prodMat(X, prodMat(pX, X)), X)
-    # if not cond1: return False 
-    # # (2)
-    # cond2 = matricesIguales(prodMat(pX, prodMat(X, pX)), pX)
-    # if not cond2: return False 
-    # # (3)
-    # cond3 = matricesIguales(prodMat(X, pX).T, prodMat(X, pX))
-    # if not cond3: return False 
-    # # (4)
-    # cond4 =  matricesIguales(prodMat(pX, X).T, prodMat(pX, X))
-    # if not cond4: return False 
-
     # (1)
-    cond1 = matricesIguales(Xc @ pXc @ Xc, Xc, tol=tol)
+    cond1 = matricesIguales(prodMat(X, prodMat(pX, X)), X)
     if not cond1: return False 
-    
     # (2)
-    cond2 = matricesIguales(pXc @ Xc @ pXc, pXc, tol=tol)
+    cond2 = matricesIguales(prodMat(pX, prodMat(X, pX)), pX)
     if not cond2: return False 
-    
     # (3)
-    cond3 = matricesIguales((Xc @ pXc).T, Xc @ pXc, tol=tol)
+    cond3 = matricesIguales(prodMat(X, pX).T, prodMat(X, pX))
     if not cond3: return False 
-    
     # (4)
-    cond4 = matricesIguales((pXc @ Xc).T, pXc @ Xc, tol=tol)
-    if not cond4: return False
+    cond4 =  matricesIguales(prodMat(pX, X).T, prodMat(pX, X))
+    if not cond4: return False 
+
+    # # (1)
+    # cond1 = matricesIguales(Xc @ pXc @ Xc, Xc, tol=tol)
+    # if not cond1: return False 
+    
+    # # (2)
+    # cond2 = matricesIguales(pXc @ Xc @ pXc, pXc, tol=tol)
+    # if not cond2: return False 
+    
+    # # (3)
+    # cond3 = matricesIguales((Xc @ pXc).T, Xc @ pXc, tol=tol)
+    # if not cond3: return False 
+    
+    # # (4)
+    # cond4 = matricesIguales((pXc @ Xc).T, pXc @ Xc, tol=tol)
+    # if not cond4: return False
 
     return True
 
@@ -549,24 +549,20 @@ def fullyConectedCholesky(X, Y):
         # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
         # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
         # Depende el caso tengo que transponer o no U
-        # print("Resolviendo sistemas triangulares .1")
         V = res_tri_matricial(L, B, inferior=True)
-        # print("Resolviendo sistemas triangulares .2")
         U = res_tri_matricial(L.T, V, inferior=False)
 
         if N > M: pX = U
         else: pX = U.T
 
-        # print("Calculando W")
         W = prodMat(Yc, pX)
 
     return W, pX
 
-def pesosConQR(X, Y, metodo):
+def fullyConnectedQR(X, Y, metodo):
   Xc = X.copy().astype(np.float64)
   Yc = Y.copy().astype(np.float64)
   if metodo == "GS":
-    # print("Calcular QR")
     Q, R = QR_con_GS(Xc.T)
   elif metodo == "HH":
     Q, R = QR_con_HH(Xc.T)
@@ -574,19 +570,10 @@ def pesosConQR(X, Y, metodo):
     print("Metodo incorrecto")
     return
 
-#   return Q, R
-
-#   print(Q.shape)
-#   print(R.shape)
-
   #Se tiene que VR^T=Q. Por tanto, el núm. de columnas de V es el de filas de R^T. Y su núm. de filas es el de filas de Q.
   V = np.zeros((Q.shape[0],R.T.shape[0]))
   #Además, RV^T = Q^T.
   V = V.T
-#   print("Resolviendo sistema")
-#   for j in range(Q.T.shape[1]):
-#     V[:,j] = res_tri(R, (Q.T)[:, j], inferior=False)
-    # Usar res_tri_matricial
   V = res_tri_matricial(R, Q.T, inferior=False)
   V = V.T
 
