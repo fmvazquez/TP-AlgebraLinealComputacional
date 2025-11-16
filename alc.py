@@ -4,14 +4,13 @@ def prodMat(A, B):
     if A.shape[1] != B.shape[0]:
         print("No se puede hacer el producto matricial")
         return
-    res = np.zeros((A.shape[0], B.shape[1]))
+    A = A.astype(np.float64)
+    B = B.astype(np.float64)
+    res = np.zeros((A.shape[0], B.shape[1]), dtype=np.float64)
 
     for i in range(res.shape[0]):
         for j in range(res.shape[1]):
-            tot = 0
-            for k in range(A.shape[1]):
-                tot += A[i, k] * B[k, j]
-            res[i, j] = tot
+            res[i, j] = np.sum(A[i, :] * B[:, j])
 
     return res
 
@@ -124,33 +123,17 @@ def calculaLU(A):
 
     return L, U, cant_op
 
-# Funcion auxiliar para res_tri
-def suma(A, X, i, inferior): 
-    res = 0
-    n = A.shape[0]
-    if inferior:
-        for j in range(i):
-            res += A[i,j]*X[j]
-    else:
-        for j in range(i+1, n):
-            res += A[i,j]*X[j]
-    return res
-
 def res_tri(A, b, inferior=True): 
-    """
-    Resuelve el sistema Lx = b, donde L es triangular. 
-
-    Se puede indicar si es triangular inferior o superior usando el argumento 
-    `inferior` (por defecto se asume que es triangular inferior).
-    """
-    X = np.zeros(b.shape)
-    n = X.shape[0]
+    X = np.zeros(len(b))  # ← Forzar 1D independientemente de b
+    n = len(b)
+    
     if inferior:
         for i in range(n):
-            X[i] = (b[i] - suma(A, X, i, inferior=True)) / A[i,i]
+            X[i] = (b[i] - (A[i, :i] * X[:i]).sum()) / A[i, i]
     else:
         for i in range(n-1, -1, -1):
-            X[i] = (b[i] - suma(A, X, i, inferior=False)) / A[i,i]
+            X[i] = (b[i] - (A[i, i+1:] * X[i+1:]).sum()) / A[i, i]
+    
     return X
 
 def res_tri_matricial(A, B, inferior=True): 
@@ -181,35 +164,47 @@ def inversa(A):
     return A_inv
 
 def QR_con_GS(A):
-    Q = np.zeros(A.shape)
-    R = np.zeros((A.shape[1],A.shape[1])) #cambio: el tamaño de R es cols A x cols A, no es el de A.
-    At_norm = normaliza(A.T)
-    for j in range (Q.shape[0]):
-        Q[j,0] = At_norm[0][j]
-
-    print("vectores normalizados")
-    R[0,0] = norma(A.T[0], p=2)
-
-    for j in range (1, Q.shape[1]): #cambio: acá itero sobre columnas de Q (Q.shape[1]), no sobre filas (Q.shape[0]).
-        print(j)
-        q = A[:, j]
-        for k in range (0, j):
-            R[k,j] = prodPunto((Q[:,k].T), q)
-            q = q - R[k,j]*Q[:,k]
-        R[j,j] = norma(q, p=2)
-        Q[:,j] = normaliza(np.expand_dims(q, axis=0))
-    print("Q shape:", Q.shape)
-    print("R shape:", R.shape)
-
+    """
+    Factorización QR por Gram-Schmidt 
+    """
+    A = A.astype(np.float64)
+    m, n = A.shape  # m filas, n columnas
+    
+    Q = np.zeros((m, n), dtype=np.float64)
+    R = np.zeros((n, n), dtype=np.float64)
+    
+    # Primera columna
+    a1 = A[:, 0]
+    R[0, 0] = norma(a1, p=2)
+    Q[:, 0] = a1 / R[0, 0]
+    
+    # for j = 2 to n do
+    for j in range(1, n):  # j va de 1 a n-1 (en Python indexado desde 0)
+        q_tilde = A[:, j].copy()
+        
+        # for k = 1 to j-1 do
+        for k in range(j):  # k va de 0 a j-1
+            R[k, j] = prodPunto(Q[:, k], q_tilde)
+            q_tilde = q_tilde - R[k, j] * Q[:, k]
+        
+        R[j, j] = norma(q_tilde, p=2)
+        
+        if R[j, j] > 1e-10:  # Evitar división por cero
+            Q[:, j] = q_tilde / R[j, j]
+        else:
+            Q[:, j] = q_tilde
+    
     return Q, R
 
 def QR_con_HH(A, tol=1e-12):
-    A = A.astype(float)
+    A = A.astype(np.float64)
     m, n = A.shape
     R = A.copy()
     Q = np.eye(m)
 
+    # print("Cantidad de pasos:", n)
     for k in range(n):
+        # print("Paso:", k)
         x = R[k:, k]
         e = np.zeros_like(x)
         e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
@@ -222,8 +217,12 @@ def QR_con_HH(A, tol=1e-12):
         H_moño[k:, k:] = H
         R = H_moño @ R
         Q = Q @ H_moño
+    
+    # Tomo la desc de Q R reducida
+    Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
+    R_red = R[:n, :]  # Tomar solo las primeras n filas de R
 
-    return Q, R
+    return Q_red, R_red
 
 def calculaCholesky(A):
     """
@@ -472,20 +471,22 @@ def matricesIguales(A, B, tol=None):
     """    
     Devuelve True si ambas matrices son iguales y False en otro caso.
     """
-    A = np.array(A)
-    B = np.array(B)
-    
+    Ac = np.copy(A).astype(np.float64)
+    Bc = np.copy(B).astype(np.float64)
+
     # Si no se especifica tolerancia, usar eps
     if tol is None:
         tol = np.finfo(np.float64).eps
 
-    if A.shape != B.shape: return False
-    for i in range(A.shape[0]):
-        for j in range(A.shape[1]):
-            if error(A[i][j], B[i][j]) > tol: return False
+    if Ac.shape != Bc.shape: return False
+    for i in range(Ac.shape[0]):
+        for j in range(Ac.shape[1]):
+            if error(Ac[i][j], Bc[i][j]) > tol: return False
     return True
 
 def esPseudoInversa(X, pX, tol=1e-8):
+    Xc = X.copy().astype(np.float64)
+    pXc = pX.copy().astype(np.float64)
     """
     Cheque que se cumplan las las cuatro condiciones de Moore-Penrose
     1. A @ A⁺ @ A = A
@@ -508,19 +509,19 @@ def esPseudoInversa(X, pX, tol=1e-8):
     # if not cond4: return False 
 
     # (1)
-    cond1 = matricesIguales(X @ pX @ X, X, tol=tol)
+    cond1 = matricesIguales(Xc @ pXc @ Xc, Xc, tol=tol)
     if not cond1: return False 
     
     # (2)
-    cond2 = matricesIguales(pX @ X @ pX, pX, tol=tol)
+    cond2 = matricesIguales(pXc @ Xc @ pXc, pXc, tol=tol)
     if not cond2: return False 
     
     # (3)
-    cond3 = matricesIguales((X @ pX).T, X @ pX, tol=tol)
+    cond3 = matricesIguales((Xc @ pXc).T, Xc @ pXc, tol=tol)
     if not cond3: return False 
     
     # (4)
-    cond4 = matricesIguales((pX @ X).T, pX @ X, tol=tol)
+    cond4 = matricesIguales((pXc @ Xc).T, pXc @ Xc, tol=tol)
     if not cond4: return False
 
     return True
@@ -528,55 +529,66 @@ def esPseudoInversa(X, pX, tol=1e-8):
 
 def fullyConectedCholesky(X, Y):
     N, M = X.shape
+    Xc = X.copy().astype(np.float64)
+    Yc = Y.copy().astype(np.float64)
     if N == M:
-        pX = inversa(X)
-        W = prodMat(Y, pX)
+        pX = inversa(Xc)
+        W = prodMat(Yc, pX)
     else:
         if N > M:
-            print("Caso (a) N > M")
-            Xh = prodMat(X.T, X) 
-            B = X.T
+            # print("Caso (a) N > M")
+            Xh = prodMat(Xc.T, Xc) 
+            B = Xc.T
         else:
-            print("Caso (b) N < M")
-            Xh = prodMat(X, X.T)
-            B = X
-        print("Calculo de Cholesky")
+            # print("Caso (b) N < M")
+            Xh = prodMat(Xc, Xc.T)
+            B = Xc
+        # print("Calculo de Cholesky")
         L = calculaCholesky(Xh)
 
         # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
         # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
         # Depende el caso tengo que transponer o no U
-        print("Resolviendo sistemas triangulares .1")
+        # print("Resolviendo sistemas triangulares .1")
         V = res_tri_matricial(L, B, inferior=True)
-        print("Resolviendo sistemas triangulares .2")
+        # print("Resolviendo sistemas triangulares .2")
         U = res_tri_matricial(L.T, V, inferior=False)
 
         if N > M: pX = U
         else: pX = U.T
 
-        print("Calculando W")
-        W = prodMat(Y, pX)
+        # print("Calculando W")
+        W = prodMat(Yc, pX)
 
     return W, pX
 
 def pesosConQR(X, Y, metodo):
+  Xc = X.copy().astype(np.float64)
+  Yc = Y.copy().astype(np.float64)
   if metodo == "GS":
-    print("Calcular QR")
-    Q, R = QR_con_GS(X.T)
+    # print("Calcular QR")
+    Q, R = QR_con_GS(Xc.T)
   elif metodo == "HH":
-    Q, R = QR_con_HH(X.T)
+    Q, R = QR_con_HH(Xc.T)
   else: 
     print("Metodo incorrecto")
     return
+
+#   return Q, R
+
+#   print(Q.shape)
+#   print(R.shape)
 
   #Se tiene que VR^T=Q. Por tanto, el núm. de columnas de V es el de filas de R^T. Y su núm. de filas es el de filas de Q.
   V = np.zeros((Q.shape[0],R.T.shape[0]))
   #Además, RV^T = Q^T.
   V = V.T
-  print("Resolviendo sistema")
-  for j in range(Q.T.shape[1]):
-    V[:,j] = res_tri(R, (Q.T)[:, j], inferior=False)
+#   print("Resolviendo sistema")
+#   for j in range(Q.T.shape[1]):
+#     V[:,j] = res_tri(R, (Q.T)[:, j], inferior=False)
+    # Usar res_tri_matricial
+  V = res_tri_matricial(R, Q.T, inferior=False)
   V = V.T
- 
-  W = Y@V
+
+  W = Yc @ V
   return W, V
