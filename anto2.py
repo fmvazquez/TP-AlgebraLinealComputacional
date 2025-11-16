@@ -1,4 +1,6 @@
 import numpy as np
+import sys
+sys.setrecursionlimit(2000)
 
 def norma(x, p=2):
     x = np.ravel(x)
@@ -36,22 +38,49 @@ def prodPunto(v, w):
     """
     Asume que el vector es columna
     """
-    
-    res = np.sum(v*w)
 
-    return res
+    return np.sum(v*w)
 
+
+# def aplicTrans(A, v):
+#     """
+#     Asume que el vector es columna
+#     """
+
+#     if A.shape[1] != v.shape[0]:
+#         print("No se puede aplicar la matriz al vector")
+#         return
+#     res = np.zeros((A.shape[0]))
+
+#     for i in range(res.shape[0]):
+#         res[i] = np.sum(A[i,:]*v)
+
+#     return res
 
 def aplicTrans(A, v):
-    """
-    Asume que el vector es columna
-    """
-    res = np.zeros((A.shape[0]))
+    return A @ v
 
-    for i in range(res.shape[0]):
-        res[i] = np.sum(A[i,:]*v)
-
-    return res
+def gram_schmidt(V):
+    """Ortogonaliza columnas de V usando Gram-Schmidt modificado"""
+    n, m = V.shape
+    U = np.zeros_like(V)
+    
+    for i in range(m):
+        U[:, i] = V[:, i].copy()
+        # Resta proyecciones sobre vectores anteriores
+        for j in range(i):
+            proj = np.dot(U[:, j], V[:, i])
+            U[:, i] -= proj * U[:, j]
+        
+        # Normaliza
+        norm = norma(U[:, i], 2)
+        if norm > 1e-14:
+            U[:, i] /= norm
+        else:
+            # Vector nulo, poner ceros
+            U[:, i] = 0
+            
+    return U
 
 def metpot2k(A, tol=1e-15, K=150):
     N = A.shape[0]
@@ -87,27 +116,41 @@ def metpot2k(A, tol=1e-15, K=150):
         e = prodPunto(v_monio, v)
         k += 1
 
+
     v_monio = np.expand_dims(v_monio, axis=0).T
     # lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
-    lambd = (v_monio.T@A@v_monio)
+    lambd = (v_monio.T@A@v_monio) [0][0]
 
     return v_monio, lambd, e-1
+
+import time
 
 def diagRH(A, tol=1e-15, K=150, nivel=1):
     """
     Diagonalización recursiva con Householder
     
     Args:
-        A: matriz a diagonalizar
+        A: matriz a diagonalizar    
         tol: tolerancia
         K: iteraciones máximas
         nivel: nivel de recursión (para tracking)
     """
+    # Marca el inicio de esta iteración
+    inicio = time.time()
+    
+    if A.shape[0] != A.shape[1]:
+        print("Matriz no cuadrada")
+        return None
     
     N = A.shape[0]
     
     # 1x1 → trivial
     if N == 1:
+        fin = time.time()
+        tiempo_transcurrido = fin - inicio
+        minutos = int(tiempo_transcurrido // 60)
+        segundos = tiempo_transcurrido % 60
+        print(f"Nivel {nivel} (N=1, caso base): {minutos}m {segundos:.3f}s")
         return np.eye(1), A.copy()
     
     # autovector dominante
@@ -118,40 +161,33 @@ def diagRH(A, tol=1e-15, K=150, nivel=1):
     e1[0][0] = 1.0
     
     # vector de Householder
-    # u = e1 - v1
-    # nu = norma(np.squeeze(u), 2)
+    u = e1 - v1
+    nu = norma(np.squeeze(u), 2)
     
     print(f'Nivel {nivel}: procesando matriz {N}x{N}')
     
-    # si v1 ≈ e1 → no hacer Householder (H=I)
-    # if nu < 1e-12:
-    #     Hv1 = np.eye(N)
-    # else:
-    #     factor = 2.0 / (nu * nu)
-    #     Hv1 = np.eye(N) - factor * u @ u.T
-
-    u = v1 - e1
-    nu = norma(u)
     if nu < 1e-12:
         Hv1 = np.eye(N)
     else:
-        u = u / nu
-        Hv1 = np.eye(N) - 2 * (u @ u.T)
-
+        factor = 2.0 / (nu*nu)
+        Hv1 = np.eye(N) - factor * (u @ u.T)
     
     # Caso N=2 → ya diagonaliza
     if N == 2:
         S = Hv1
         D = Hv1 @ A @ Hv1.T
         
+        fin = time.time()
+        tiempo_transcurrido = fin - inicio
+        minutos = int(tiempo_transcurrido // 60)
+        segundos = tiempo_transcurrido % 60
+        print(f"Nivel {nivel} (N=2, caso base): {minutos}m {segundos:.3f}s")
+        
         return S, D
     
-    # Construir B = H A H^T
-    B = Hv1 @ A @ Hv1.T
-    
-    # Submatriz sin la primera fila/col
-    Ahat = B[1:N, 1:N]
-    
+    A[:] = Hv1 @ A @ Hv1.T
+    Ahat = A[1:, 1:]
+
     # Recurrencia (pasa el nivel incrementado)
     Shat, Dhat = diagRH(Ahat, tol, K, nivel + 1)
     
@@ -171,25 +207,40 @@ def diagRH(A, tol=1e-15, K=150, nivel=1):
     return S, D
 
 
-def svd_reducida (A, k ='max' , tol=1e-15):
+def svd_reducida(A, k='max', tol=1e-15):
     
     n = A.shape[0]
     m = A.shape[1]
     
     if n < m: 
-        # M = prodMat(A, A.T)
-        M = A@A.T
+        M = A @ A.T
     else:
-        # M = prodMat(A.T, A)
-        M = A.T@A
+        M = A.T @ A
+    
     S, D = diagRH(M, tol)
     
     aval = []
     avec = []
-    for i in range (D.shape[0]):
+    for i in range(D.shape[0]):
         if D[i,i] > tol:
             aval.append(np.sqrt(D[i,i]))
             avec.append(S[:, i])
+            
+    sigma = np.array(aval)
+    eps = 1e-16
+    tol_s = max(A.shape) * eps * np.max(sigma)
+    
+    keep = sigma > tol_s
+    nuevos_sigma = []
+    nuevos_vec = []
+    
+    for i in range(len(sigma)):
+        if keep[i]:
+            nuevos_sigma.append(sigma[i])
+            nuevos_vec.append(avec[i])
+    
+    sigma = np.array(nuevos_sigma)
+    avec = nuevos_vec
     
     # Aplica k si tiene limite
     if k != 'max':
@@ -201,31 +252,28 @@ def svd_reducida (A, k ='max' , tol=1e-15):
     r = len(aval)
     S = np.array(aval)
     U = np.zeros((n, r))
-    V = np.zeros((m,r))
+    V = np.zeros((m, r))
     
+    # Formo U y V
     if n < m:
         for i in range(r):
             U[:, i] = avec[i] / norma(avec[i])
-            V_moño = aplicTrans(A.T,U[:, i])
+            V_moño = aplicTrans(A.T, U[:, i])
             V[:, i] = V_moño / aval[i]
     else:
         for i in range(r):
             V[:, i] = avec[i] / norma(avec[i])
-            U_moño = aplicTrans(A,V[:, i])
-            U[:,i] = U_moño / aval[i]
-    
-    
+            U_moño = aplicTrans(A, V[:, i])
+            U[:, i] = U_moño / aval[i]
+
     return U, S, V
 
 def fullyConnectedSVD(X,Y):
     U, S, V = svd_reducida(X)
     
-    # #convertir S a S+
-    # for i in range (S.shape):
-    #     S[i] = 1/S[i]
-    
     VS= np.zeros(V.shape)
     r = VS.shape[1]
+    
     # en vez de pasar a S+ divido cada Vi por S[i] que es como multiplicar por 1/S[i] (inversa de sigma)
     for i in range(r):
         VS[:, i] = V[:, i]/S[i]
@@ -233,4 +281,5 @@ def fullyConnectedSVD(X,Y):
     X_ps = VS@U.T
     W = Y@X_ps
     
-    return W, X_ps
+    return W, X_ps, U, S, V
+
