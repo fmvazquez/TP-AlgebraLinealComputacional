@@ -215,9 +215,9 @@ def QR_con_HH(A, tol=1e-12):
         H = np.eye(m - k) - 2 * np.outer(u, u)
         H_moño = np.eye(m)
         H_moño[k:, k:] = H
-        R = H_moño @ R
-        Q = Q @ H_moño
-    
+        R = prodMat(H_moño, R)
+        Q = prodMat(Q, H_moño)
+
     # Tomo la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
     R_red = R[:n, :]  # Tomar solo las primeras n filas de R
@@ -577,5 +577,5 @@ def fullyConnectedQR(X, Y, metodo):
   V = res_tri_matricial(R, Q.T, inferior=False)
   V = V.T
 
-  W = Yc @ V
+  W = prodMat(Yc, V)
   return W, V
