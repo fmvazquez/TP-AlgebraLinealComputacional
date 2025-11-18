@@ -262,25 +262,21 @@ def calculaCholesky(A):
 # La k es 150 para controlar el tiempo de ejecución
 def metpot2k(A, tol=1e-15, K=150):
     N = A.shape[0]
-    op = 0
 
     # Si la matriz es nula, entonces todos los autovalores son 0
     if norma(A, 2) < tol:
         v = np.random.rand(N)
         v = v / norma(v, 2)
         v = np.expand_dims(v, axis=0).T
-        op += 1
         return v, 0, 0
 
     # Vector inicial
     v = np.random.rand(N)
     v = v / norma(v, 2)
-    op += 1
 
     # Primera transformación lineal
     v_monio = aplicTrans(A, v)
     v_monio = v_monio / norma(v_monio, 2)
-    op += 1
 
     e = prodPunto(v_monio, v)
     k = 0
@@ -293,11 +289,9 @@ def metpot2k(A, tol=1e-15, K=150):
         # Aplico transformación lineal
         w = aplicTrans(A, v)
         w = w / norma(w, 2)
-        op += 1
 
         v_monio = aplicTrans(A, w)
         v_monio = v_monio / norma(v_monio, 2)
-        op += 1
 
         e = prodPunto(v_monio, v)
         k += 1
@@ -305,6 +299,48 @@ def metpot2k(A, tol=1e-15, K=150):
     # Calculo el autovalor
     v_monio1 = np.expand_dims(v_monio, axis=0).T
     lambd = aplicTrans(prodMat(v_monio1.T, A), v_monio).item()
+
+    return v_monio, lambd, e-1
+
+def metpot2k_np(A, tol=1e-15, K=150):
+    N = A.shape[0]
+
+    # Caso matriz nula, entonces todos los autovalores son 0
+    if norma(A, 2) < tol:
+        v = np.random.rand(N)
+        v = v / norma(v, 2)
+        v = np.expand_dims(v, axis=0).T
+        return v, 0.0, 0
+
+    # vector inicial
+    v = np.random.rand(N)
+    v = v / norma(v, 2)
+
+    # Primera transformación lineal
+    v_monio = A @ v
+    v_monio = v_monio / norma(v_monio, 2)
+
+    e = np.sum(v_monio * v)
+    k = 0
+    
+    # Iteración hasta que converja o k llegue al límite
+    while abs(e - 1) > tol and k < K:
+
+        v = v_monio
+
+        # Aplico transformación lineal
+        w = A @ v
+        w = w / norma(w, 2)
+
+        v_monio = A @ w
+        v_monio = v_monio / norma(v_monio, 2)
+
+        e = np.sum(v_monio * v)
+        k += 1
+
+    # Calculo el autovalor
+    v_monio = np.expand_dims(v_monio, axis=0).T
+    lambd = (v_monio.T @ (A @ v_monio)) [0,0]
 
     return v_monio, lambd, e-1
 
@@ -324,7 +360,6 @@ def diagRH(A, tol=1e-15, K=150):
         return None
     
     N = A.shape[0]
-    op = 0
     
     # Obtengo autovalor y autovector dominante
     v1, lambda1, _ = metpot2k(A, tol, 150)
@@ -342,7 +377,6 @@ def diagRH(A, tol=1e-15, K=150):
     else:
         factor = 2 / (nu*nu)
         Hv1 = np.eye(N) - factor * (u * u.T)
-        op += 4
     
     # Caso N=2, ya diagonaliza
     if N == 2:
@@ -371,13 +405,69 @@ def diagRH(A, tol=1e-15, K=150):
     
     return S, D
 
+def diagRH_np(A, tol=1e-15, K=150):
+    """
+    Diagonalización recursiva con Householder
+    
+    Args:
+        A: matriz a diagonalizar    
+        tol: tolerancia
+        K: iteraciones máximas
+        nivel: nivel de recursión (para tracking)
+    """
+    
+    N = A.shape[0]
+    
+    # Obtengo autovalor y autovector dominante
+    v1, lambda1, _ = metpot2k(A, tol, 150)
+    
+    # e1
+    e1 = np.zeros((N, 1))
+    e1[0,0] = 1.0
+    
+    # Vector de Householder
+    u = e1 - v1
+    nu = norma(np.squeeze(u), 2)
+        
+    if nu < 1e-12:
+        Hv1 = np.eye(N)
+    else:
+        factor = 2.0 / (nu*nu)
+        Hv1 = np.eye(N) - factor * (u @ u.T)
+    
+    # Caso N=2, ya diagonaliza
+    if N == 2:
+        S = Hv1
+        D = Hv1 @ A @ Hv1.T
+        return S, D
+    
+    A[:] = Hv1 @ A @ Hv1.T
+    Ahat = A[1:, 1:]
+
+    # Acá hago la recursión
+    Shat, Dhat = diagRH(Ahat, tol, K)
+    
+    # Construyo D grande
+    D = np.zeros((N, N))
+    D[0, 0] = lambda1
+    D[1:, 1:] = Dhat
+    
+    # Extiendo Shat a NxN
+    Hprod = np.zeros((N, N))
+    Hprod[0, 0] = 1.0
+    Hprod[1:, 1:] = Shat
+    
+    # Matriz de autovectores final
+    S = Hv1 @ Hprod
+    
+    return S, D
+
 #labo08
 
 def svd_reducida(A, k='max', tol=1e-15):
     
     n = A.shape[0]
     m = A.shape[1]
-    op = 0
     
     if n < m: 
         M = prodMat(A, A.T)
@@ -385,17 +475,18 @@ def svd_reducida(A, k='max', tol=1e-15):
         M = prodMat(A.T, A)
     
     S, D = diagRH(M, tol)
-    
-    aval = []
-    avec = []
+
+    # Creo listas con valores singulares y vectores singulares
+    vals = []
+    vecs = []
     for i in range(D.shape[0]):
         if D[i,i] > tol:
-            aval.append(np.sqrt(D[i,i]))
-            avec.append(S[:, i])
+            vals.append(np.sqrt(D[i,i]))
+            vecs.append(S[:, i])
             
-    sigma = np.array(aval)
+    sigma = np.array(vals)
 
-    # Calculo una tolerancia relativa para decidir cuales serán mis autovalores
+    # Se calcula una tolerancia relativa para decidir cuales serán mis autovalores
     eps = 1e-16
     tol_s = max(A.shape) * eps * np.max(sigma)
     
@@ -407,35 +498,93 @@ def svd_reducida(A, k='max', tol=1e-15):
     for i in range(len(sigma)):
         if utiles[i]:
             nuevos_sigma.append(sigma[i])
-            nuevos_vec.append(avec[i])
+            nuevos_vec.append(vecs[i])
     
     sigma = np.array(nuevos_sigma)
-    avec = nuevos_vec
+    vecs = nuevos_vec
     
     # Aplica k si tiene limite
     if k != 'max':
-        aval = aval[:k]
-        avec = avec[:k]
+        vals = vals[:k]
+        vecs = vecs[:k]
         
-    r = len(aval)
-    S = np.array(aval)
+    r = len(vals)
+    S = np.array(vals)
     U = np.zeros((n, r))
     V = np.zeros((m, r))
     
     # Formo U y V
     if n < m:
         for i in range(r):
-            U[:, i] = avec[i] / norma(avec[i])
+            U[:, i] = vecs[i] / norma(vecs[i])
             V_moño = aplicTrans(A.T, U[:, i])
-            V[:, i] = V_moño / aval[i]
-            op += 2
+            V[:, i] = V_moño / vals[i]
     else:
         for i in range(r):
-            V[:, i] = avec[i] / norma(avec[i])
+            V[:, i] = vecs[i] / norma(vecs[i])
             U_moño = aplicTrans(A, V[:, i])
-            U[:, i] = U_moño / aval[i]
-            op += 2
+            U[:, i] = U_moño / vals[i]
 
+    return U, S, V
+
+def svd_reducida_np(A, k='max', tol=1e-15):
+    
+    n = A.shape[0]
+    m = A.shape[1]
+    
+    if n < m: 
+        M = A @ A.T
+    else:
+        M = A.T @ A
+    
+    S, D = diagRH(M, tol)
+    
+    # Creo listas con valores singulares y vectores singulares
+    vals = []
+    vecs = []
+    for i in range(D.shape[0]):
+        if D[i,i] > tol:
+            vals.append(np.sqrt(D[i,i]))
+            vecs.append(S[:, i])
+            
+    sigma = np.array(vals)
+    eps = 1e-16
+    tol_s = max(A.shape) * eps * np.max(sigma)
+    
+    # Creamos una lista de booleanos que para saber con que autovalores quedarnos (los que no estén cerca de 0)
+    utiles = sigma > tol_s
+    nuevos_sigma = []
+    nuevos_vec = []
+    
+    for i in range(len(sigma)):
+        if utiles[i]:
+            nuevos_sigma.append(sigma[i])
+            nuevos_vec.append(vecs[i])
+    
+    sigma = np.array(nuevos_sigma)
+    vecs = nuevos_vec
+    
+    # Aplica k si tiene limite
+    if k != 'max':
+        vals = vals[:k]
+        vecs = vecs[:k]
+        
+    r = len(vals)
+    S = np.array(vals)
+    U = np.zeros((n, r))
+    V = np.zeros((m, r))
+    
+    # Formo U y V
+    if n < m:
+        for i in range(r):
+            U[:, i] = vecs[i] / norma(vecs[i])
+            V_moño = A.T @ U[:, i]
+            V[:, i] = V_moño / vals[i]
+    else:
+        for i in range(r):
+            V[:, i] = vecs[i] / norma(vecs[i])
+            U_moño = A @ V[:, i]
+            U[:, i] = U_moño / vals[i]
 
     return U, S, V
  
@@ -593,5 +742,21 @@ def fullyConnectedSVD(X,Y):
     
     X_ps = prodMat(V, U.T)
     W = prodMat(Yc, X_ps)
+    
+    return W, X_ps
+
+def fullyConnectedSVD_np(X,Y):
+    Xc = X.copy().astype(np.float64)
+    Yc = Y.copy().astype(np.float64)
+    U, S, V = svd_reducida_np(Xc)
+    
+    r = V.shape[1]
+    
+    # En vez de pasar a S+ divido cada Vi por S[i]
+    for i in range(r):
+        V[:, i] = V[:, i]/S[i]
+    
+    X_ps = V @ U.T
+    W = Yc @ X_ps
     
     return W, X_ps
