@@ -214,11 +214,39 @@ def QR_con_HH(A, tol=1e-12):
         if norma(u,p=2) < tol:
             continue
         u = u / norma(u,p=2)
-        H = np.eye(m - k) - 2 * np.outer(u, u)
+        H = np.eye(m - k) - 2 * prodMat(np.expand_dims(u, axis=1), np.expand_dims(u, axis=0))
         H_moño = np.eye(m)
         H_moño[k:, k:] = H
         R = prodMat(H_moño, R)
         Q = prodMat(Q, H_moño)
+
+    # Tomo la desc de Q R reducida
+    Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
+    R_red = R[:n, :]  # Tomar solo las primeras n filas de R
+
+    return Q_red, R_red
+
+def QR_con_HH_NP(A, tol=1e-12):
+    A = A.astype(np.float64)
+    m, n = A.shape
+    R = A.copy()
+    Q = np.eye(m)
+
+    # print("Cantidad de pasos:", n)
+    for k in range(n):
+        # print("Paso:", k)
+        x = R[k:, k]
+        e = np.zeros_like(x)
+        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+        u = x - e
+        if norma(u,p=2) < tol:
+            continue
+        u = u / norma(u,p=2)
+        H = np.eye(m - k) - 2 * np.outer(u, u)
+        H_moño = np.eye(m)
+        H_moño[k:, k:] = H
+        R = H_moño @ R
+        Q = Q @ H_moño
 
     # Tomo la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
@@ -645,38 +673,50 @@ def esPseudoInversa(X, pX, tol=1e-8):
     """
 
     # (1)
-    cond1 = matricesIguales(prodMat(X, prodMat(pX, X)), X)
+    cond1 = matricesIguales(prodMat(pXc, prodMat(pXc, Xc)), Xc)
     if not cond1: return False 
     # (2)
-    cond2 = matricesIguales(prodMat(pX, prodMat(X, pX)), pX)
+    cond2 = matricesIguales(prodMat(pXc, prodMat(Xc, pXc)), pXc)
     if not cond2: return False 
     # (3)
-    cond3 = matricesIguales(prodMat(X, pX).T, prodMat(X, pX))
+    cond3 = matricesIguales(prodMat(Xc, pXc).T, prodMat(Xc, pXc))
     if not cond3: return False 
     # (4)
-    cond4 =  matricesIguales(prodMat(pX, X).T, prodMat(pX, X))
+    cond4 =  matricesIguales(prodMat(pXc, Xc).T, prodMat(pXc, Xc))
     if not cond4: return False 
-
-    # # (1)
-    # cond1 = matricesIguales(Xc @ pXc @ Xc, Xc, tol=tol)
-    # if not cond1: return False 
-    
-    # # (2)
-    # cond2 = matricesIguales(pXc @ Xc @ pXc, pXc, tol=tol)
-    # if not cond2: return False 
-    
-    # # (3)
-    # cond3 = matricesIguales((Xc @ pXc).T, Xc @ pXc, tol=tol)
-    # if not cond3: return False 
-    
-    # # (4)
-    # cond4 = matricesIguales((pXc @ Xc).T, pXc @ Xc, tol=tol)
-    # if not cond4: return False
 
     return True
 
+def esPseudoInversaNP(X, pX, tol=1e-8):
+    Xc = X.copy().astype(np.float64)
+    pXc = pX.copy().astype(np.float64)
+    """
+    Cheque que se cumplan las las cuatro condiciones de Moore-Penrose
+    1. A @ A⁺ @ A = A
+    2. A⁺ @ A @ A⁺ = A⁺
+    3. (A @ A⁺)* = A @ A⁺
+    4. (A⁺ @ A)* = A⁺ @ A
+    """
 
-def fullyConectedCholesky(X, Y):
+    # (1)
+    cond1 = matricesIguales(Xc @ pXc @ Xc, Xc, tol=tol)
+    if not cond1: return False 
+    
+    # (2)
+    cond2 = matricesIguales(pXc @ Xc @ pXc, pXc, tol=tol)
+    if not cond2: return False 
+    
+    # (3)
+    cond3 = matricesIguales((Xc @ pXc).T, Xc @ pXc, tol=tol)
+    if not cond3: return False 
+    
+    # (4)
+    cond4 = matricesIguales((pXc @ Xc).T, pXc @ Xc, tol=tol)
+    if not cond4: return False
+
+    return True        
+
+def pinvEcuacionesNormales(X, L, Y):
     N, M = X.shape
     Xc = X.copy().astype(np.float64)
     Yc = Y.copy().astype(np.float64)
@@ -685,40 +725,23 @@ def fullyConectedCholesky(X, Y):
         W = prodMat(Yc, pX)
     else:
         if N > M:
-            # print("Caso (a) N > M")
-            Xh = prodMat(Xc.T, Xc) 
             B = Xc.T
         else:
-            # print("Caso (b) N < M")
-            Xh = prodMat(Xc, Xc.T)
             B = Xc
-        # print("Calculo de Cholesky")
-        L = calculaCholesky(Xh)
 
-        # En el caso (a) me queda L L.T U = B -> L V = B -> L.T V = B
-        # En el caso (b) me queda L L.T U.T = B -> L V = B -> L.T V.T = B
-        # Depende el caso tengo que transponer o no U
-        V = res_tri_matricial(L, B, inferior=True)
-        U = res_tri_matricial(L.T, V, inferior=False)
+    V = res_tri_matricial(L, B, inferior=True)
+    U = res_tri_matricial(L.T, V, inferior=False)
 
-        if N > M: pX = U
-        else: pX = U.T
+    if N > M: pX = U
+    else: pX = U.T
 
-        W = prodMat(Yc, pX)
+    W = prodMat(Yc, pX)
 
-    return W, pX
+    return W
 
-def fullyConnectedQR(X, Y, metodo):
-  Xc = X.copy().astype(np.float64)
+def pinvHouseHolder(Q, R, Y):
   Yc = Y.copy().astype(np.float64)
-  if metodo == "GS":
-    Q, R = QR_con_GS(Xc.T)
-  elif metodo == "HH":
-    Q, R = QR_con_HH(Xc.T)
-  else: 
-    print("Metodo incorrecto")
-    return
-
+ 
   #Se tiene que VR^T=Q. Por tanto, el núm. de columnas de V es el de filas de R^T. Y su núm. de filas es el de filas de Q.
   V = np.zeros((Q.shape[0],R.T.shape[0]))
   #Además, RV^T = Q^T.
@@ -727,36 +750,50 @@ def fullyConnectedQR(X, Y, metodo):
   V = V.T
 
   W = prodMat(Yc, V)
-  return W, V
+  return W
 
-def fullyConnectedSVD(X,Y):
-    Xc = X.copy().astype(np.float64)
-    Yc = Y.copy().astype(np.float64)
-    U, S, V = svd_reducida(Xc)
-    
-    r = V.shape[1]
-    
-    # En vez de pasar a S+ divido cada Vi por S[i]
-    for i in range(r):
-        V[:, i] = V[:, i]/S[i]
-    
-    X_ps = prodMat(V, U.T)
-    W = prodMat(Yc, X_ps)
-    
-    return W, X_ps
+def pinvGramSchmidt(Q, R, Y):
+  Yc = Y.copy().astype(np.float64)
+ 
+  #Se tiene que VR^T=Q. Por tanto, el núm. de columnas de V es el de filas de R^T. Y su núm. de filas es el de filas de Q.
+  V = np.zeros((Q.shape[0],R.T.shape[0]))
+  #Además, RV^T = Q^T.
+  V = V.T
+  V = res_tri_matricial(R, Q.T, inferior=False)
+  V = V.T
 
-def fullyConnectedSVD_np(X,Y):
-    Xc = X.copy().astype(np.float64)
-    Yc = Y.copy().astype(np.float64)
-    U, S, V = svd_reducida_np(Xc)
+  W = prodMat(Yc, V)
+  return W
+
+
+# def fullyConnectedSVD(X,Y):
+#     Xc = X.copy().astype(np.float64)
+#     Yc = Y.copy().astype(np.float64)
+#     U, S, V = svd_reducida(Xc)
     
-    r = V.shape[1]
+#     r = V.shape[1]
     
-    # En vez de pasar a S+ divido cada Vi por S[i]
-    for i in range(r):
-        V[:, i] = V[:, i]/S[i]
+#     # En vez de pasar a S+ divido cada Vi por S[i]
+#     for i in range(r):
+#         V[:, i] = V[:, i]/S[i]
     
-    X_ps = V @ U.T
-    W = Yc @ X_ps
+#     X_ps = prodMat(V, U.T)
+#     W = prodMat(Yc, X_ps)
     
-    return W, X_ps
+#     return W, X_ps
+
+# def fullyConnectedSVD_np(X,Y):
+#     Xc = X.copy().astype(np.float64)
+#     Yc = Y.copy().astype(np.float64)
+#     U, S, V = svd_reducida_np(Xc)
+    
+#     r = V.shape[1]
+    
+#     # En vez de pasar a S+ divido cada Vi por S[i]
+#     for i in range(r):
+#         V[:, i] = V[:, i]/S[i]
+    
+#     X_ps = V @ U.T
+#     W = Yc @ X_ps
+    
+#     return W, X_ps
