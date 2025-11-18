@@ -477,7 +477,7 @@ def diagRH_np(A, tol=1e-15, K=150):
     N = A.shape[0]
     
     # Obtengo autovalor y autovector dominante
-    v1, lambda1, _ = metpot2k(A, tol, 150)
+    v1, lambda1, _ = metpot2k_np(A, tol, 150)
     
     # e1
     e1 = np.zeros((N, 1))
@@ -503,7 +503,7 @@ def diagRH_np(A, tol=1e-15, K=150):
     Ahat = A[1:, 1:]
 
     # Acá hago la recursión
-    Shat, Dhat = diagRH(Ahat, tol, K)
+    Shat, Dhat = diagRH_np(Ahat, tol, K)
     
     # Construyo D grande
     D = np.zeros((N, N))
@@ -574,12 +574,12 @@ def svd_reducida(A, k='max', tol=1e-15):
     # Formo U y V
     if n < m:
         for i in range(r):
-            U[:, i] = vecs[i] / norma(vecs[i])
+            U[:, i] = vecs[i] / norma(vecs[i], 2)
             V_moño = aplicTrans(A.T, U[:, i])
             V[:, i] = V_moño / vals[i]
     else:
         for i in range(r):
-            V[:, i] = vecs[i] / norma(vecs[i])
+            V[:, i] = vecs[i] / norma(vecs[i], 2)
             U_moño = aplicTrans(A, V[:, i])
             U[:, i] = U_moño / vals[i]
 
@@ -595,7 +595,7 @@ def svd_reducida_np(A, k='max', tol=1e-15):
     else:
         M = A.T @ A
     
-    S, D = diagRH(M, tol)
+    S, D = diagRH_np(M, tol)
     
     # Creo listas con valores singulares y vectores singulares
     vals = []
@@ -635,12 +635,12 @@ def svd_reducida_np(A, k='max', tol=1e-15):
     # Formo U y V
     if n < m:
         for i in range(r):
-            U[:, i] = vecs[i] / norma(vecs[i])
+            U[:, i] = vecs[i] / norma(vecs[i],2)
             V_moño = A.T @ U[:, i]
             V[:, i] = V_moño / vals[i]
     else:
         for i in range(r):
-            V[:, i] = vecs[i] / norma(vecs[i])
+            V[:, i] = vecs[i] / norma(vecs[i],2)
             U_moño = A @ V[:, i]
             U[:, i] = U_moño / vals[i]
 

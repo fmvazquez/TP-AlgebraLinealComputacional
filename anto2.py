@@ -358,36 +358,36 @@ def metpot2k(A, tol=1e-15, K=150):
     v = np.random.rand(N)
     v = v / norma(v, 2)
 
-    v_monio = aplicTrans(A, v)
+    # Primera transformación lineal
+    v_monio = A @ v
     v_monio = v_monio / norma(v_monio, 2)
 
-    e = prodPunto(v_monio, v)
+    e = np.sum(v_monio * v)
     k = 0
     
+    # Iteración hasta que converja o k llegue al límite
     while abs(e - 1) > tol and k < K:
 
         v = v_monio
 
-        # doble aplicación
-        w = aplicTrans(A, v)
+        # Aplico transformación lineal
+        w = A @ v
         w = w / norma(w, 2)
 
-        v_monio = aplicTrans(A, w)
+        v_monio = A @ w
         v_monio = v_monio / norma(v_monio, 2)
 
-        e = prodPunto(v_monio, v)
+        e = np.sum(v_monio * v)
         k += 1
 
-
+    # Calculo el autovalor
     v_monio = np.expand_dims(v_monio, axis=0).T
-    # lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
-    lambd = (v_monio.T@A@v_monio) [0][0]
+    lambd = (v_monio.T @ (A @ v_monio)) [0,0]
 
     return v_monio, lambd, e-1
 
-import time
 
-def diagRH(A, tol=1e-15, K=150, nivel=1):
+def diagRH(A, tol=1e-15, K=150):
     """
     Diagonalización recursiva con Householder
     
@@ -397,64 +397,49 @@ def diagRH(A, tol=1e-15, K=150, nivel=1):
         K: iteraciones máximas
         nivel: nivel de recursión (para tracking)
     """
-    # Marca el inicio de esta iteración
-    inicio = time.time()
-    
-    if A.shape[0] != A.shape[1]:
-        print("Matriz no cuadrada")
-        return None
     
     N = A.shape[0]
     
-    # autovector dominante
+    # Obtengo autovalor y autovector dominante
     v1, lambda1, _ = metpot2k(A, tol, 150)
     
     # e1
     e1 = np.zeros((N, 1))
-    e1[0][0] = 1.0
+    e1[0,0] = 1.0
     
-    # vector de Householder
+    # Vector de Householder
     u = e1 - v1
     nu = norma(np.squeeze(u), 2)
-    
-    print(f'Nivel {nivel}: procesando matriz {N}x{N}')
-    
+        
     if nu < 1e-12:
         Hv1 = np.eye(N)
     else:
         factor = 2.0 / (nu*nu)
         Hv1 = np.eye(N) - factor * (u @ u.T)
     
-    # Caso N=2 → ya diagonaliza
+    # Caso N=2, ya diagonaliza
     if N == 2:
         S = Hv1
         D = Hv1 @ A @ Hv1.T
-        
-        fin = time.time()
-        tiempo_transcurrido = fin - inicio
-        minutos = int(tiempo_transcurrido // 60)
-        segundos = tiempo_transcurrido % 60
-        print(f"Nivel {nivel} (N=2, caso base): {minutos}m {segundos:.3f}s")
-        
         return S, D
     
     A[:] = Hv1 @ A @ Hv1.T
     Ahat = A[1:, 1:]
 
-    # Recurrencia (pasa el nivel incrementado)
-    Shat, Dhat = diagRH(Ahat, tol, K, nivel + 1)
+    # Acá hago la recursión
+    Shat, Dhat = diagRH(Ahat, tol, K)
     
     # Construyo D grande
     D = np.zeros((N, N))
     D[0, 0] = lambda1
     D[1:, 1:] = Dhat
     
-    # Extiendo Shat a N×N
+    # Extiendo Shat a NxN
     Hprod = np.zeros((N, N))
     Hprod[0, 0] = 1.0
     Hprod[1:, 1:] = Shat
     
-    # matriz de autovectores final
+    # Matriz de autovectores final
     S = Hv1 @ Hprod
     
     return S, D
@@ -472,52 +457,52 @@ def svd_reducida(A, k='max', tol=1e-15):
     
     S, D = diagRH(M, tol)
     
-    aval = []
-    avec = []
+    # Creo listas con valores singulares y vectores singulares
+    vals = []
+    vecs = []
     for i in range(D.shape[0]):
         if D[i,i] > tol:
-            aval.append(np.sqrt(D[i,i]))
-            avec.append(S[:, i])
+            vals.append(np.sqrt(D[i,i]))
+            vecs.append(S[:, i])
             
-    sigma = np.array(aval)
+    sigma = np.array(vals)
     eps = 1e-16
     tol_s = max(A.shape) * eps * np.max(sigma)
     
-    keep = sigma > tol_s
+    # Creamos una lista de booleanos que para saber con que autovalores quedarnos (los que no estén cerca de 0)
+    utiles = sigma > tol_s
     nuevos_sigma = []
     nuevos_vec = []
     
     for i in range(len(sigma)):
-        if keep[i]:
+        if utiles[i]:
             nuevos_sigma.append(sigma[i])
-            nuevos_vec.append(avec[i])
+            nuevos_vec.append(vecs[i])
     
     sigma = np.array(nuevos_sigma)
-    avec = nuevos_vec
+    vecs = nuevos_vec
     
     # Aplica k si tiene limite
     if k != 'max':
-        aval = aval[:k]
-        avec = avec[:k]
-    
-    print('3 va por aqui')
-    
-    r = len(aval)
-    S = np.array(aval)
+        vals = vals[:k]
+        vecs = vecs[:k]
+        
+    r = len(vals)
+    S = np.array(vals)
     U = np.zeros((n, r))
     V = np.zeros((m, r))
     
     # Formo U y V
     if n < m:
         for i in range(r):
-            U[:, i] = avec[i] / norma(avec[i])
-            V_moño = aplicTrans(A.T, U[:, i])
-            V[:, i] = V_moño / aval[i]
+            U[:, i] = vecs[i] / norma(vecs[i])
+            V_moño = A.T @ U[:, i]
+            V[:, i] = V_moño / vals[i]
     else:
         for i in range(r):
-            V[:, i] = avec[i] / norma(avec[i])
-            U_moño = aplicTrans(A, V[:, i])
-            U[:, i] = U_moño / aval[i]
+            V[:, i] = vecs[i] / norma(vecs[i])
+            U_moño = A @ V[:, i]
+            U[:, i] = U_moño / vals[i]
 
     return U, S, V
 
@@ -535,3 +520,52 @@ def fullyConnectedSVD(X,Y):
     W = Y@X_ps
     
     return W, X_ps
+
+import matplotlib.pyplot as plt
+
+def matriz_confusion(Y_real, Y_pred):
+    """
+    Matriz de confusión y accuracy de nuestros valores.
+    """
+
+    # Pasar de one-hot a etiquetas enteras
+    y_true = np.argmax(Y_real, axis=0)
+    y_pred = np.argmax(Y_pred, axis=0)
+
+    # Cantidad de clases
+    num_clases = max(y_true.max(), y_pred.max()) + 1
+
+    # Matriz de confusión
+    M = np.zeros((num_clases, num_clases), dtype=float)
+    for real, pred in zip(y_true, y_pred):
+        M[real, pred] += 1
+    M /= Y_real.shape[1]
+
+    # Gráfico
+    plt.figure()
+    plt.imshow(M, cmap = 'Blues')
+    plt.title("Matriz de Confusión")
+    plt.xlabel("Predicción")
+    plt.ylabel("Clase real")
+    plt.xticks([])
+    plt.yticks([])
+    #plt.colorbar(im)
+    # Agregar valores sobre la matriz
+    for i in range(num_clases):
+        for j in range(num_clases):
+            plt.text(j, i, str(M[i, j]),
+                     ha='center', va='center')
+    plt.show()
+
+    aciertos = 0
+    total = 0
+    for i in range (M.shape[0]):
+        for j in range (M.shape[1]):
+            if i == j:
+                aciertos += M[i,i]
+                total += M[i,i]
+            else:
+                total += M[i,j]
+
+    accuracy = aciertos / total
+    return M, accuracy.round(3)
