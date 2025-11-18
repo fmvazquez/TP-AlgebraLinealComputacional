@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import sys
 sys.setrecursionlimit(2000)
 
@@ -441,7 +442,6 @@ def diagRH_np(A, tol=1e-15, K=150):
         A: matriz a diagonalizar    
         tol: tolerancia
         K: iteraciones máximas
-        nivel: nivel de recursión (para tracking)
     """
     
     N = A.shape[0]
@@ -469,7 +469,7 @@ def diagRH_np(A, tol=1e-15, K=150):
         D = Hv1 @ A @ Hv1.T
         return S, D
     
-    A[:] = Hv1 @ A @ Hv1.T
+    A[:] = Hv1 @ (A @ Hv1.T)
     Ahat = A[1:, 1:]
 
     # Acá hago la recursión
@@ -765,35 +765,64 @@ def pinvGramSchmidt(Q, R, Y):
   W = prodMat(Yc, V)
   return W
 
+def pinvSVD(U, S, V, Y):
+    Yc = Y.copy().astype(np.float64)
+    r = V.shape[1]
+    
+    # En vez de pasar a S+ divido cada Vi por S[i]
+    for i in range(r):
+        V[:, i] = V[:, i]/S[i]
+    
+    X_ps = prodMat(V, U.T)
+    W = prodMat(Yc, X_ps)
+    return W
 
-# def fullyConnectedSVD(X,Y):
-#     Xc = X.copy().astype(np.float64)
-#     Yc = Y.copy().astype(np.float64)
-#     U, S, V = svd_reducida(Xc)
-    
-#     r = V.shape[1]
-    
-#     # En vez de pasar a S+ divido cada Vi por S[i]
-#     for i in range(r):
-#         V[:, i] = V[:, i]/S[i]
-    
-#     X_ps = prodMat(V, U.T)
-#     W = prodMat(Yc, X_ps)
-    
-#     return W, X_ps
 
-# def fullyConnectedSVD_np(X,Y):
-#     Xc = X.copy().astype(np.float64)
-#     Yc = Y.copy().astype(np.float64)
-#     U, S, V = svd_reducida_np(Xc)
+def matriz_confusion(Y_real, Y_pred):
+    """
+    Matriz de confusión y accuracy para nuestros valores.
+    """
+
+    # Pasar de one-hot a etiquetas enteras
+    y_true = np.argmax(Y_real, axis=0)
+    y_pred = np.argmax(Y_pred, axis=0)
+
+    # Cantidad de clases
+    num_clases = max(y_true.max(), y_pred.max()) + 1
+
+    # Matriz de confusión
+    M = np.zeros((num_clases, num_clases), dtype=float)
+    for real, pred in zip(y_true, y_pred):
+        M[real, pred] += 1
+    M /= Y_real.shape[1]
+
+    # Gráfico
+    plt.figure()
+    im = plt.imshow(M, cmap = 'Blues')
+    plt.title("Matriz de Confusión")
+    plt.xlabel("Predicción")
+    plt.ylabel("Clase real")
+    plt.xticks([])
+    plt.yticks([])
+    plt.colorbar(im)
     
-#     r = V.shape[1]
-    
-#     # En vez de pasar a S+ divido cada Vi por S[i]
-#     for i in range(r):
-#         V[:, i] = V[:, i]/S[i]
-    
-#     X_ps = V @ U.T
-#     W = Yc @ X_ps
-    
-#     return W, X_ps
+    # Agregar valores sobre la matriz
+    for i in range(num_clases):
+        for j in range(num_clases):
+            plt.text(j, i, str(M[i, j]),
+                     ha='center', va='center')
+    plt.show()
+
+    # Calcular accuracy
+    aciertos = 0
+    total = 0
+    for i in range (M.shape[0]):
+        for j in range (M.shape[1]):
+            if i == j:
+                aciertos += M[i,i]
+                total += M[i,i]
+            else:
+                total += M[i,j]
+
+    accuracy = aciertos / total
+    return M, accuracy.round(3)
