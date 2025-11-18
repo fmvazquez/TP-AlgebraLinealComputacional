@@ -4,13 +4,16 @@ import sys
 sys.setrecursionlimit(2000)
 
 def prodMat(A, B):
-    if A.shape[1] != B.shape[0]:
+    if A.shape[1] != B.shape[0]:   #Condiciones de tamaño para poder hacer el producto matricial
         print("No se puede hacer el producto matricial")
         return
+    #Aseguramos consistencia en el tipo de datos interno de A y B:
     A = A.astype(np.float64)
     B = B.astype(np.float64)
+    #Inicializamos en 0 la matriz producto:
     res = np.zeros((A.shape[0], B.shape[1]), dtype=np.float64)
 
+    #Cada posición (i,j) de res es el producto escalar entre la fila i de A y la col. j de B:
     for i in range(res.shape[0]):
         for j in range(res.shape[1]):
             res[i, j] = np.sum(A[i, :] * B[:, j])
@@ -27,8 +30,9 @@ def aplicTrans(A, v):
         return
     res = np.zeros((A.shape[0]))
 
+    #Cada posición i de res es el producto entre las k columnas de la fila i de A y v:
     for i in range(res.shape[0]):
-        tot = 0            
+        tot = 0
         for k in range(A.shape[1]):
             tot += A[i, k] * v[k]
         res[i] = tot
@@ -43,7 +47,7 @@ def prodPunto(v, w):
     if v.shape[0] != w.shape[0]:
         print("No se puede calcular el prodcuto punto")
         return
-    
+
     return np.sum(v * w)
 
 # Labo01
@@ -53,31 +57,20 @@ def error(x,y):
     """
     return np.abs(np.float64(x) - np.float64(y))
 
-# def matricesIguales(A,B):
-#     """    
-#     Devuelve True si ambas matrices son iguales y False en otro caso.
-#     """
-#     A = np.array(A)
-#     B = np.array(B)
-
-#     if A.shape != B.shape: return False
-#     for i in range(A.shape[0]):
-#         for j in range(A.shape[1]):
-#             if error(A[i][j], B[i][j]) > np.finfo(np.float64).eps: return False
-#     return True
-
 # Labo03
-# BIEN
 def norma(x, p):
     suma = 0
-    if p == "inf": 
+    #Caso en el que queremos calcular la norma infinito:
+    if p == "inf":
         return np.abs(np.array(x)).max()
+
+    #En otro caso, la norma que se quiere está definida por p:
     xabs = np.abs(x)
     suma = np.sum(xabs**p)
-    
     return suma ** (1/p)
 
 def normaliza(X):
+    #Para cada fila de X, si la norma 2 de la fila no es 0, se la divide por la misma, es decir, se la normaliza.
     for i in range(X.shape[0]):
         normav = norma(X[i], p=2)
         if (normav == 0): continue
@@ -88,37 +81,46 @@ def normaliza(X):
 def calculaLU(A):
     # BIEN SEGUN TESTS NUESTROS
     """
-    Calcula la factorización LU de la matriz A y retorna las matrices L y U, 
-    junto con el número de operaciones realizadas. 
+    Calcula la factorización LU de la matriz A y retorna las matrices L y U,
+    junto con el número de operaciones realizadas.
 
     En caso de que la matriz no pueda factorizarse, retorna None.
     """
-    
-    cant_op = 0
+
+    cant_op = 0 # (El cálculo de cant. de operaciones se pide en el labo.)
     M=A.shape[0]
     N=A.shape[1]
     Ac = A.copy().astype(np.float64)
-    
+
     if M!=N:
         return None
-    
+
     finfo = np.finfo(Ac.dtype)
-    
+
+    # POr cada columna
     for j in range(N):
+        # Toma el pivote
         piv = Ac[j][j]
+        # Si es 0 no existe LU
         if abs(piv) < finfo.eps:  # pivote nulo o casi nulo
             return None
+        # Elimino hacia abajo
         for i in range(j+1, N):
+            # Calculo el multiplicador para eliminar el elemento en la fila i, columna j
             mult = Ac[i][j] / piv
             cant_op += 1
+            # Actualizo la fila i restando mult * fila j
             for k in range(j+1, N):
+                # Resto el elemento correspondiente de la fila j multiplicado por el multiplicador
                 Ac[i][k] -= mult * Ac[j][k]
                 cant_op += 2
+            # Guardo el multiplicador en la posición correspondiente de la matriz A
             Ac[i][j] = mult
-    
+
     L = np.eye(N,N)
     U = np.eye(N,N)
 
+    # Separo L y U
     for i in range(N):
         for j in range(N):
             if (i <= j): U[i, j] = Ac[i, j]
@@ -126,40 +128,48 @@ def calculaLU(A):
 
     return L, U, cant_op
 
-def res_tri(A, b, inferior=True): 
+def res_tri(A, b, inferior=True):
     X = np.zeros(len(b))  # ← Forzar 1D independientemente de b
     n = len(b)
-    
+
+    '''
+    Si A es inferior, calculo X[i] haciendo sustitución hacia adelante, siendo:
+        - A[i, :i] los elementos de A antes de la diagonal en la fila i.
+        - X[:i] los valores ya conocidos de la solución
+    Si es superior, es análogo pero para los elementos después de la diagonal.
+    '''
     if inferior:
         for i in range(n):
             X[i] = (b[i] - (A[i, :i] * X[:i]).sum()) / A[i, i]
     else:
         for i in range(n-1, -1, -1):
             X[i] = (b[i] - (A[i, i+1:] * X[i+1:]).sum()) / A[i, i]
-    
+
     return X
 
-def res_tri_matricial(A, B, inferior=True): 
+def res_tri_matricial(A, B, inferior=True):
     """
-    Resuelve el sistema L X = B, donde L es triangular. 
+    Resuelve el sistema L X = B, donde L es triangular.
 
-    Se puede indicar si es triangular inferior o superior usando el argumento 
+    Se puede indicar si es triangular inferior o superior usando el argumento
     `inferior` (por defecto se asume que es triangular inferior).
     """
     N, M = B.shape
     X = np.zeros((N, M))
-    
-    # Resolver para cada columna de B independientemente
+
+    #Resolver para cada columna de B independientemente
     for j in range(M):
         X[:, j] = res_tri(A, B[:, j], inferior=inferior)
-    
+
     return X
 
 def inversa(A):
+    # Calcula la inversa de la matriz A usando la factorización LU
     L, U, _ = calculaLU(A)
     A_inv = np.zeros(A.shape)
     I = np.eye(A.shape[0])
 
+    #Se tiene que A_inv = x <-> Ax = I <-> LUx = I <-> Ux = y and Ly = I
     for i in range(len(A)):
         y = res_tri(L, I[:, i], inferior=True) # Ly = I
         x = res_tri(U, y, inferior=False) # Ux = y
@@ -168,88 +178,110 @@ def inversa(A):
 
 def QR_con_GS(A):
     """
-    Factorización QR por Gram-Schmidt 
+    Factorización QR por Gram-Schmidt
     """
     A = A.astype(np.float64)
     m, n = A.shape  # m filas, n columnas
-    
+
     Q = np.zeros((m, n), dtype=np.float64)
     R = np.zeros((n, n), dtype=np.float64)
-    
-    # Primera columna
+
+    #Primera columna
     a1 = A[:, 0]
     R[0, 0] = norma(a1, p=2)
     Q[:, 0] = a1 / R[0, 0]
-    
-    # for j = 2 to n do
-    for j in range(1, n):  # j va de 1 a n-1 (en Python indexado desde 0)
+
+
+    for j in range(1, n):  #Copiamos la columna j de A para modificarla
         q_tilde = A[:, j].copy()
-        
-        # for k = 1 to j-1 do
-        for k in range(j):  # k va de 0 a j-1
+
+        #Eliminamos las componentes que ya están en las columnas anteriores de Q
+        for k in range(j):
             R[k, j] = prodPunto(Q[:, k], q_tilde)
             q_tilde = q_tilde - R[k, j] * Q[:, k]
-        
+
         R[j, j] = norma(q_tilde, p=2)
-        
-        if R[j, j] > 1e-10:  # Evitar división por cero
+
+        #Si el vector no es prácticamente cero, lo normalizamos
+        if R[j, j] > 1e-10:  #Evitar división por cero
             Q[:, j] = q_tilde / R[j, j]
         else:
             Q[:, j] = q_tilde
-    
+
+    #Devolvemos Q y R, con Q ortonormal y R triangular superior
     return Q, R
 
 def QR_con_HH(A, tol=1e-12):
+    """
+    Factorización QR por Householder
+    """
     A = A.astype(np.float64)
     m, n = A.shape
-    R = A.copy()
-    Q = np.eye(m)
+    R = A.copy() #R luego quedará triangular superior.
+    Q = np.eye(m) #Q irá acumulando las transformaciones  de Householder.
 
-    # print("Cantidad de pasos:", n)
     for k in range(n):
-        # print("Paso:", k)
+        #Tomamos la parte "inferior" de la col. actual (desde la fila k en adelante)
         x = R[k:, k]
+
+        #Definimos e de modo que al restarlo de x genere la reflexión
         e = np.zeros_like(x)
         e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+
+        #Calculamos el vector de Householder
         u = x - e
+
+        #Verificamos si u es o no casi 0
         if norma(u,p=2) < tol:
             continue
+
         u = u / norma(u,p=2)
-        H = np.eye(m - k) - 2 * prodMat(np.expand_dims(u, axis=1), np.expand_dims(u, axis=0))
+        H = np.eye(m - k) - 2 * prodMat(np.expand_dims(u, axis=1), np.expand_dims(u, axis=0)) #Construimos la matriz de Householder H de tamaño reducido
         H_moño = np.eye(m)
-        H_moño[k:, k:] = H
-        R = prodMat(H_moño, R)
+        H_moño[k:, k:] = H #Insertamos H en la submatriz correspondiente
+
+        R = prodMat(H_moño, R) #Anulamos los elementos debajo de la diagonal
         Q = prodMat(Q, H_moño)
 
-    # Tomo la desc de Q R reducida
+    #Tomamos la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
     R_red = R[:n, :]  # Tomar solo las primeras n filas de R
 
     return Q_red, R_red
 
-def QR_con_HH_NP(A, tol=1e-12):
+def QR_con_HH(A, tol=1e-12):
+    """
+    Factorización QR por Householder
+    """
     A = A.astype(np.float64)
     m, n = A.shape
-    R = A.copy()
-    Q = np.eye(m)
+    R = A.copy() #R luego quedará triangular superior.
+    Q = np.eye(m) #Q irá acumulando las transformaciones  de Householder.
 
-    # print("Cantidad de pasos:", n)
     for k in range(n):
-        # print("Paso:", k)
+        #Tomamos la parte "inferior" de la col. actual (desde la fila k en adelante)
         x = R[k:, k]
+
+        #Definimos e de modo que al restarlo de x genere la reflexión
         e = np.zeros_like(x)
         e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+
+        #Calculamos el vector de Householder
         u = x - e
+
+        #Verificamos si u es o no casi 0
         if norma(u,p=2) < tol:
             continue
+
         u = u / norma(u,p=2)
-        H = np.eye(m - k) - 2 * np.outer(u, u)
+        H = np.eye(m - k) - 2 * (np.expand_dims(u, axis=1) @ np.expand_dims(u, axis=0)) #Construimos la matriz de Householder H de tamaño reducido
         H_moño = np.eye(m)
-        H_moño[k:, k:] = H
-        R = H_moño @ R
+        H_moño[k:, k:] = H #Insertamos H en la submatriz correspondiente
+
+        R = H_moño @ R #Anulamos los elementos debajo de la diagonal
         Q = Q @ H_moño
 
-    # Tomo la desc de Q R reducida
+    #Tomamos la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
     R_red = R[:n, :]  # Tomar solo las primeras n filas de R
 
@@ -259,7 +291,7 @@ def calculaCholesky(A):
     """
     Calcula la factorización de Cholesky A = L * L.T
     usando la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
-    
+
     Retorna L, D, U (donde U = L.T).
     """
 
@@ -277,7 +309,7 @@ def calculaCholesky(A):
     D = np.zeros((N, N))
     for i in range(N):
         D[i, i] = U[i, i]
-    
+
     L_chol = np.zeros(L.shape)
     for i in range(N):
         for j in range(i+1):
@@ -285,8 +317,6 @@ def calculaCholesky(A):
 
     return L_chol
 
-
-# Labo06
 
 # La k es 150 para controlar el tiempo de ejecución
 def metpot2k(A, tol=1e-15, K=150):
