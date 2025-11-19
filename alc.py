@@ -4,6 +4,12 @@ import sys
 sys.setrecursionlimit(2000)
 
 def prodMat(A, B):
+    """
+    Producto matricial entre A y B
+    Recibe: A: matriz de tamaño (m x n)
+            B: matriz de tamaño (n x p)
+    Devuelve: matriz resultado de tamaño (m x p)
+    """
     if A.shape[1] != B.shape[0]:   #Condiciones de tamaño para poder hacer el producto matricial
         print("No se puede hacer el producto matricial")
         return
@@ -22,7 +28,10 @@ def prodMat(A, B):
 
 def aplicTrans(A, v):
     """
-    Asume que el vector es columna
+    Aplica la transformación lineal asociada a la matriz A sobre el vector v.
+    Recibe: A: matriz de tamaño (m x n)
+            v: vector de tamaño (n)
+    Devuelve: vector resultado de tamaño (m)
     """
 
     if A.shape[1] != v.shape[0]:
@@ -41,7 +50,10 @@ def aplicTrans(A, v):
 
 def prodPunto(v, w):
     """
-    Asume que el vector es columna
+    Producto punto entre dos vectores v y w
+    Recibe: v: vector de tamaño (n)
+            w: vector de tamaño (n)
+    Devuelve: escalar resultado
     """
 
     if v.shape[0] != w.shape[0]:
@@ -53,12 +65,20 @@ def prodPunto(v, w):
 # Labo01
 def error(x,y):
     """
-    Recibe dos numeros x e y, y calcula el error de aproximar x usando y en float64
+    Calcula el error absoluto entre dos números x e y.
+    Recibe: x, y: números reales
+    Devuelve: |x - y|
     """
     return np.abs(np.float64(x) - np.float64(y))
 
 # Labo03
 def norma(x, p):
+    """
+    Calcula la norma p del vector x.
+    Recibe: x: vector de tamaño (n)
+            p: entero positivo o "inf" para norma infinito
+    Devuelve: norma p de x
+    """
     suma = 0
     #Caso en el que queremos calcular la norma infinito:
     if p == "inf":
@@ -79,12 +99,12 @@ def normaliza(X):
 
 # Labo04
 def calculaLU(A):
-    # BIEN SEGUN TESTS NUESTROS
     """
     Calcula la factorización LU de la matriz A y retorna las matrices L y U,
     junto con el número de operaciones realizadas.
-
     En caso de que la matriz no pueda factorizarse, retorna None.
+    Recibe: A: matriz cuadrada de tamaño (N x N)
+    Devuelve: L, U, cant_op
     """
 
     cant_op = 0 # (El cálculo de cant. de operaciones se pide en el labo.)
@@ -129,7 +149,15 @@ def calculaLU(A):
     return L, U, cant_op
 
 def res_tri(A, b, inferior=True):
-    X = np.zeros(len(b))  # ← Forzar 1D independientemente de b
+    """
+    Resuelve un sistema de ecuaciones lineales Ax = b, donde A es una matriz triangular.
+    Se puede indicar si es triangular inferior o superior usando el argumento
+    `inferior` (por defecto se asume que es triangular inferior).
+    Recibe: A: matriz triangular de tamaño (n x n)
+            b: vector de tamaño (n)
+            inferior: booleano que indica si A es triangular inferior (True) o superior (False)
+    """
+    X = np.zeros(len(b))  
     n = len(b)
 
     '''
@@ -153,6 +181,11 @@ def res_tri_matricial(A, B, inferior=True):
 
     Se puede indicar si es triangular inferior o superior usando el argumento
     `inferior` (por defecto se asume que es triangular inferior).
+
+    Recibe: A: matriz triangular de tamaño (n x n)
+            B: matriz de tamaño (n x m)
+            inferior: booleano que indica si A es triangular inferior (True) o superior (False)
+    Devuelve: X: matriz solución de tamaño (n x m)
     """
     N, M = B.shape
     X = np.zeros((N, M))
@@ -164,6 +197,11 @@ def res_tri_matricial(A, B, inferior=True):
     return X
 
 def inversa(A):
+    """
+    Calcula la inversa de la matriz A usando la factorización LU
+    Recibe: A: matriz cuadrada de tamaño (n x n)
+    Devuelve: A_inv: matriz inversa de tamaño (n x n) o None si no es invertible
+    """
     # Calcula la inversa de la matriz A usando la factorización LU
     L, U, _ = calculaLU(A)
     A_inv = np.zeros(A.shape)
@@ -179,6 +217,9 @@ def inversa(A):
 def QR_con_GS(A):
     """
     Factorización QR por Gram-Schmidt
+    Recibe: A: matriz de tamaño (m x n)
+    Devuelve: Q: matriz ortonormal de tamaño (m x n)
+              R: matriz triangular superior de tamaño (n x n)
     """
     A = A.astype(np.float64)
     m, n = A.shape  # m filas, n columnas
@@ -214,6 +255,9 @@ def QR_con_GS(A):
 def QR_con_HH(A, tol=1e-12):
     """
     Factorización QR por Householder
+    Recibe: A: matriz de tamaño (m x n)
+    Devuelve: Q: matriz ortogonal de tamaño (m x n)
+              R: matriz triangular superior de tamaño (n x n)
     """
     A = A.astype(np.float64)
     m, n = A.shape
@@ -249,9 +293,9 @@ def QR_con_HH(A, tol=1e-12):
 
     return Q_red, R_red
 
-def QR_con_HH(A, tol=1e-12):
+def QR_con_HH_NP(A, tol=1e-12):
     """
-    Factorización QR por Householder
+    Factorización QR por Householder (utilizando numpy para productos matriciales)
     """
     A = A.astype(np.float64)
     m, n = A.shape
@@ -290,12 +334,10 @@ def QR_con_HH(A, tol=1e-12):
 def calculaCholesky(A):
     """
     Calcula la factorización de Cholesky A = L * L.T
-    usando la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
-
-    Retorna L, D, U (donde U = L.T).
+    Recibe: A: matriz simétrica definida positiva de tamaño (N x N)
+    Devuelve: L: matriz triangular inferior de tamaño (N x N)
     """
-
-    # Verificar si es SDP
+    # Usa la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
 
     A = np.array(A, dtype=np.float64)
 
