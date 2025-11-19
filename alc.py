@@ -356,8 +356,8 @@ def metpot2k(A, tol=1e-15, K=150):
         k += 1
 
     # Calculo el autovalor
-    v_monio1 = np.expand_dims(v_monio, axis=0).T
-    lambd = aplicTrans(prodMat(v_monio1.T, A), v_monio).item()
+    v_monio = np.expand_dims(v_monio, axis=0).T
+    lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
 
     return v_monio, lambd, e-1
 
@@ -404,7 +404,7 @@ def metpot2k_np(A, tol=1e-15, K=150):
     return v_monio, lambd, e-1
 
 
-def diagRH(A, tol=1e-15, K=150):
+def diagRH(A, tol=1e-15, K=1000):
     """
     Diagonalización recursiva con Householder
     
@@ -419,13 +419,16 @@ def diagRH(A, tol=1e-15, K=150):
         return None
     
     N = A.shape[0]
+
+    if N == 1:
+        return np.eye(1), A.copy()
     
     # Obtengo autovalor y autovector dominante
-    v1, lambda1, _ = metpot2k(A, tol, 150)
+    v1, lambda1, _ = metpot2k(A, tol, K)
     
     # e1
     e1 = np.zeros((N, 1))
-    e1[0,0] = 1
+    e1[0,0] = 1.0
     
     # Vector de Householder
     u = e1 - v1
@@ -435,7 +438,7 @@ def diagRH(A, tol=1e-15, K=150):
         Hv1 = np.eye(N)
     else:
         factor = 2 / (nu*nu)
-        Hv1 = np.eye(N) - factor * (u * u.T)
+        Hv1 = np.eye(N) - factor * prodMat(u, u.T)
     
     # Caso N=2, ya diagonaliza
     if N == 2:
@@ -443,8 +446,8 @@ def diagRH(A, tol=1e-15, K=150):
         D = prodMat(prodMat(Hv1, A), Hv1.T)
         return S, D
     
-    A[:] = prodMat(prodMat(Hv1, A), Hv1.T)
-    Ahat = A[1:, 1:]
+    B = prodMat(prodMat(Hv1, A), Hv1.T)
+    Ahat = B[1:N, 1:N]
 
     # Acá hago la recursión
     Shat, Dhat = diagRH(Ahat, tol, K)
@@ -456,7 +459,7 @@ def diagRH(A, tol=1e-15, K=150):
     
     # Extiendo Shat a NxN
     Hprod = np.zeros((N, N))
-    Hprod[0, 0] = 1
+    Hprod[0, 0] = 1.0
     Hprod[1:, 1:] = Shat
     
     # Matriz de autovectores final
@@ -475,9 +478,12 @@ def diagRH_np(A, tol=1e-15, K=150):
     """
     
     N = A.shape[0]
+
+    if N == 1:
+        return np.eye(1), A.copy()
     
     # Obtengo autovalor y autovector dominante
-    v1, lambda1, _ = metpot2k_np(A, tol, 150)
+    v1, lambda1, _ = metpot2k_np(A, tol, K)
     
     # e1
     e1 = np.zeros((N, 1))
@@ -496,11 +502,11 @@ def diagRH_np(A, tol=1e-15, K=150):
     # Caso N=2, ya diagonaliza
     if N == 2:
         S = Hv1
-        D = Hv1 @ A @ Hv1.T
+        D = Hv1 @ (A @ Hv1.T)
         return S, D
     
-    A[:] = Hv1 @ (A @ Hv1.T)
-    Ahat = A[1:, 1:]
+    B = Hv1 @ (A @ Hv1.T)
+    Ahat = B[1:, 1:]
 
     # Acá hago la recursión
     Shat, Dhat = diagRH_np(Ahat, tol, K)
@@ -606,6 +612,8 @@ def svd_reducida_np(A, k='max', tol=1e-15):
             vecs.append(S[:, i])
             
     sigma = np.array(vals)
+
+    # Se calcula una tolerancia relativa para decidir cuales serán mis autovalores
     eps = 1e-16
     tol_s = max(A.shape) * eps * np.max(sigma)
     
