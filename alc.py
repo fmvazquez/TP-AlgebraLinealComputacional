@@ -505,8 +505,9 @@ def diagRH_np(A, tol=1e-15, K=150):
         D = Hv1 @ (A @ Hv1.T)
         return S, D
     
-    B = Hv1 @ (A @ Hv1.T)
-    Ahat = B[1:, 1:]
+    # Modifica A in-place en función de no crear matrices nuevas y tener problemas de memoria
+    A[:] = Hv1 @ (A @ Hv1.T)
+    Ahat = A[1:, 1:]
 
     # Acá hago la recursión
     Shat, Dhat = diagRH_np(Ahat, tol, K)
