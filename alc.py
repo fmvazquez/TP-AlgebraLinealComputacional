@@ -547,25 +547,6 @@ def svd_reducida(A, k='max', tol=1e-15):
         if D[i,i] > tol:
             vals.append(np.sqrt(D[i,i]))
             vecs.append(S[:, i])
-            
-    sigma = np.array(vals)
-
-    # Se calcula una tolerancia relativa para decidir cuales serán mis autovalores
-    eps = 1e-16
-    tol_s = max(A.shape) * eps * np.max(sigma)
-    
-    # Creamos una lista de booleanos que para saber con que autovalores quedarnos (los que no estén cerca de 0)
-    utiles = sigma > tol_s
-    nuevos_sigma = []
-    nuevos_vec = []
-    
-    for i in range(len(sigma)):
-        if utiles[i]:
-            nuevos_sigma.append(sigma[i])
-            nuevos_vec.append(vecs[i])
-    
-    sigma = np.array(nuevos_sigma)
-    vecs = nuevos_vec
     
     # Aplica k si tiene limite
     if k != 'max':
