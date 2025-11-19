@@ -362,6 +362,11 @@ def calculaCholesky(A):
 
 # La k es 150 para controlar el tiempo de ejecución
 def metpot2k(A, tol=1e-15, K=150):
+    """
+    Calcula autovalor y autovector dominante mediante el método de la potencia.
+
+    Retorna v_monio (autovector), lambda (autovalor) y e-1 (error).
+    """
     N = A.shape[0]
 
     # Si la matriz es nula, entonces todos los autovalores son 0
@@ -398,12 +403,18 @@ def metpot2k(A, tol=1e-15, K=150):
         k += 1
 
     # Calculo el autovalor
-    v_monio1 = np.expand_dims(v_monio, axis=0).T
-    lambd = aplicTrans(prodMat(v_monio1.T, A), v_monio).item()
+    v_monio = np.expand_dims(v_monio, axis=0).T
+    lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
 
     return v_monio, lambd, e-1
 
 def metpot2k_np(A, tol=1e-15, K=150):
+    """
+    Calcula autovalor y autovector dominante mediante el método de la potencia
+
+    Retorna v_monio (autovector), lambda (autovalor) y e-1 (error)
+    Esta función utiliza la libreria NumPy
+    """
     N = A.shape[0]
 
     # Caso matriz nula, entonces todos los autovalores son 0
@@ -446,28 +457,27 @@ def metpot2k_np(A, tol=1e-15, K=150):
     return v_monio, lambd, e-1
 
 
-def diagRH(A, tol=1e-15, K=150):
+def diagRH(A, tol=1e-15, K=1000):
     """
     Diagonalización recursiva con Householder
     
-    Args:
-        A: matriz a diagonalizar    
-        tol: tolerancia
-        K: iteraciones máximas
-        nivel: nivel de recursión (para tracking)
+    Recibe A (matriz a diagonalizar), tol (tolerancia) y K (iteraciones máximas)
     """
     if A.shape[0] != A.shape[1]:
         print("Matriz no cuadrada")
         return None
     
     N = A.shape[0]
+
+    if N == 1:
+        return np.eye(1), A.copy()
     
     # Obtengo autovalor y autovector dominante
-    v1, lambda1, _ = metpot2k(A, tol, 150)
+    v1, lambda1, _ = metpot2k(A, tol, K)
     
     # e1
     e1 = np.zeros((N, 1))
-    e1[0,0] = 1
+    e1[0,0] = 1.0
     
     # Vector de Householder
     u = e1 - v1
@@ -477,7 +487,7 @@ def diagRH(A, tol=1e-15, K=150):
         Hv1 = np.eye(N)
     else:
         factor = 2 / (nu*nu)
-        Hv1 = np.eye(N) - factor * (u * u.T)
+        Hv1 = np.eye(N) - factor * prodMat(u, u.T)
     
     # Caso N=2, ya diagonaliza
     if N == 2:
@@ -485,8 +495,8 @@ def diagRH(A, tol=1e-15, K=150):
         D = prodMat(prodMat(Hv1, A), Hv1.T)
         return S, D
     
-    A[:] = prodMat(prodMat(Hv1, A), Hv1.T)
-    Ahat = A[1:, 1:]
+    B = prodMat(prodMat(Hv1, A), Hv1.T)
+    Ahat = B[1:N, 1:N]
 
     # Acá hago la recursión
     Shat, Dhat = diagRH(Ahat, tol, K)
@@ -498,7 +508,7 @@ def diagRH(A, tol=1e-15, K=150):
     
     # Extiendo Shat a NxN
     Hprod = np.zeros((N, N))
-    Hprod[0, 0] = 1
+    Hprod[0, 0] = 1.0
     Hprod[1:, 1:] = Shat
     
     # Matriz de autovectores final
@@ -510,16 +520,17 @@ def diagRH_np(A, tol=1e-15, K=150):
     """
     Diagonalización recursiva con Householder
     
-    Args:
-        A: matriz a diagonalizar    
-        tol: tolerancia
-        K: iteraciones máximas
+    Recibe A (matriz a diagonalizar), tol (tolerancia) y K (iteraciones máximas)
+    Esta función utiliza la libreria NumPy
     """
     
     N = A.shape[0]
+
+    if N == 1:
+        return np.eye(1), A.copy()
     
     # Obtengo autovalor y autovector dominante
-    v1, lambda1, _ = metpot2k_np(A, tol, 150)
+    v1, lambda1, _ = metpot2k_np(A, tol, K)
     
     # e1
     e1 = np.zeros((N, 1))
@@ -538,9 +549,10 @@ def diagRH_np(A, tol=1e-15, K=150):
     # Caso N=2, ya diagonaliza
     if N == 2:
         S = Hv1
-        D = Hv1 @ A @ Hv1.T
+        D = Hv1 @ (A @ Hv1.T)
         return S, D
     
+    # Modifica A in-place en función de no crear matrices nuevas y tener problemas de memoria
     A[:] = Hv1 @ (A @ Hv1.T)
     Ahat = A[1:, 1:]
 
@@ -565,6 +577,16 @@ def diagRH_np(A, tol=1e-15, K=150):
 #labo08
 
 def svd_reducida(A, k='max', tol=1e-15):
+    """
+    Calcula la descomposición en valores singulares de una matriz.
+
+    Recibe:
+    A la matriz de interes (de m x n),
+    k el numero de valores singulares (y vectores) a retener,
+    tol la tolerancia para considerar un valor singular igual a cero.
+
+    Retorna U (matriz de m x k), S (vector de k valores singulares) y V (matriz de n x k)
+    """
     
     n = A.shape[0]
     m = A.shape[1]
@@ -583,25 +605,6 @@ def svd_reducida(A, k='max', tol=1e-15):
         if D[i,i] > tol:
             vals.append(np.sqrt(D[i,i]))
             vecs.append(S[:, i])
-            
-    sigma = np.array(vals)
-
-    # Se calcula una tolerancia relativa para decidir cuales serán mis autovalores
-    eps = 1e-16
-    tol_s = max(A.shape) * eps * np.max(sigma)
-    
-    # Creamos una lista de booleanos que para saber con que autovalores quedarnos (los que no estén cerca de 0)
-    utiles = sigma > tol_s
-    nuevos_sigma = []
-    nuevos_vec = []
-    
-    for i in range(len(sigma)):
-        if utiles[i]:
-            nuevos_sigma.append(sigma[i])
-            nuevos_vec.append(vecs[i])
-    
-    sigma = np.array(nuevos_sigma)
-    vecs = nuevos_vec
     
     # Aplica k si tiene limite
     if k != 'max':
@@ -628,7 +631,17 @@ def svd_reducida(A, k='max', tol=1e-15):
     return U, S, V
 
 def svd_reducida_np(A, k='max', tol=1e-15):
-    
+    """
+    Calcula la descomposición en valores singulares de una matriz.
+
+    Recibe:
+    A la matriz de interes (de m x n),
+    k el numero de valores singulares (y vectores) a retener,
+    tol la tolerancia para considerar un valor singular igual a cero.
+
+    Retorna U (matriz de m x k), S (vector de k valores singulares) y V (matriz de n x k)
+    Esta función utiliza funciones de la libreria NumPy
+    """   
     n = A.shape[0]
     m = A.shape[1]
     
@@ -648,10 +661,13 @@ def svd_reducida_np(A, k='max', tol=1e-15):
             vecs.append(S[:, i])
             
     sigma = np.array(vals)
+
+    # Se calcula una tolerancia relativa para decidir cuales serán mis autovalores relevantes
     eps = 1e-16
     tol_s = max(A.shape) * eps * np.max(sigma)
     
-    # Creamos una lista de booleanos que para saber con que autovalores quedarnos (los que no estén cerca de 0)
+    # Creamos una lista de booleanos para saber con que autovalores quedarnos como última instancia luego de utilizar la tol del input,
+    # En función de reasegurarnos que no se dividirá por un número muy chico a la hora de buscar los vectores singulares.
     utiles = sigma > tol_s
     nuevos_sigma = []
     nuevos_vec = []

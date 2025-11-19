@@ -569,3 +569,160 @@ def matriz_confusion(Y_real, Y_pred):
 
     accuracy = aciertos / total
     return M, accuracy.round(3)
+
+
+
+
+
+def svd_reducida (A, k ='max' , tol=1e-15):
+    
+    n = A.shape[0]
+    m = A.shape[1]
+    
+    if n < m: 
+        M = prodMat(A, A.T)
+    else:
+        M = prodMat(A.T, A)
+    S, D = diagRH(M, tol)
+    
+    aval = []
+    avec = []
+    for i in range (D.shape[0]):
+        if D[i,i] > tol:
+            aval.append(np.sqrt(D[i,i]))
+            avec.append(S[:, i])
+    
+    # Aplica k si tiene limite
+    if k != 'max':
+        aval = aval[:k]
+        avec = avec[:k]
+    
+    
+    r = len(aval)
+    S = np.array(aval)
+    U = np.zeros((n, r))
+    V = np.zeros((m,r))
+    
+    if n < m:
+        for i in range(r):
+            U[:, i] = avec[i] / norma(avec[i])
+            V_moño = aplicTrans(A.T,U[:, i])
+            V[:, i] = V_moño / aval[i]
+    else:
+        for i in range(r):
+            V[:, i] = avec[i] / norma(avec[i])
+            U_moño = aplicTrans(A,V[:, i])
+            U[:,i] = U_moño / aval[i]
+    
+    
+    return U, S, V
+
+def diagRH(A, tol=1e-15, K=1000):
+
+    if A.shape[0] != A.shape[1]:
+        print("Matriz no cuadrada")
+        return None
+
+    N = A.shape[0]
+
+    # 1x1 → trivial
+    if N == 1:
+        return np.eye(1), A.copy()
+
+    # autovector dominante
+    v1, lambda1, _ = metpot2k(A, tol, K)
+
+    # e1
+    e1 = np.zeros((N,1))
+    e1[0][0] = 1.0
+
+    # vector de Householder
+    u = e1 - v1
+    nu = norma(np.squeeze(u), 2)
+
+    # si v1 ≈ e1 → no hacer Householder (H=I)
+    if nu < 1e-12:
+        Hv1 = np.eye(N)
+    else:
+        factor = 2.0 / (nu * nu)
+        Hv1 = np.eye(N) - factor * prodMat(u, u.T)
+
+    # Caso N=2 → ya diagonaliza
+    if N == 2:
+        S = Hv1
+        D = prodMat(prodMat(Hv1, A), Hv1.T)
+        return S, D
+
+    # Construir B = H A H^T
+    B = prodMat(prodMat(Hv1, A), Hv1.T)
+
+    # Submatriz sin la primera fila/col
+    Ahat = B[1:N, 1:N]
+
+    # Recurrencia
+    Shat, Dhat = diagRH(Ahat, tol, K)
+
+   # Construyo D grande
+    D = np.zeros((N, N))
+    D[0, 0] = lambda1
+    D[1:, 1:] = Dhat
+    
+    # Extiendo Shat a NxN
+    Hprod = np.zeros((N, N))
+    Hprod[0, 0] = 1
+    Hprod[1:, 1:] = Shat
+    
+
+    # matriz de autovectores final
+    S = prodMat(Hv1, Hprod)
+
+    return S, D
+
+
+def metpot2k(A, tol=1e-15, K=1000):
+    N = A.shape[0]
+
+    # Caso matriz nula → todos los autovalores son 0
+    if norma(A, 2) < tol:
+        v = np.random.rand(N)
+        v = v / norma(v, 2)
+        v = np.expand_dims(v, axis=0).T
+        return v, 0.0, 0
+
+    # vector inicial
+    v = np.random.rand(N)
+    v = v / norma(v, 2)
+
+    v_monio = aplicTrans(A, v)
+    v_monio = v_monio / norma(v_monio, 2)
+
+    e = prodPunto(v_monio, v)
+    k = 0
+    stuck = 0
+
+    while abs(e - 1) > tol and k < K:
+
+        v = v_monio
+
+        # doble aplicación
+        w = aplicTrans(A, v)
+        w = w / norma(w, 2)
+
+        v_monio = aplicTrans(A, w)
+        v_monio = v_monio / norma(v_monio, 2)
+
+        e = prodPunto(v_monio, v)
+        k += 1
+
+        # # Si está oscilando por autovalores iguales → reinicio
+        # if abs(e) < 0.05:
+        #     stuck += 1
+        #     if stuck > 5:
+        #         v = np.random.rand(N)
+        #         v = v / norma(v, 2)
+        #         stuck = 0
+
+    v_monio = np.expand_dims(v_monio, axis=0).T
+    lambd = prodMat(prodMat(v_monio.T, A), v_monio)[0][0]
+
+    return v_monio, lambd, e-1
