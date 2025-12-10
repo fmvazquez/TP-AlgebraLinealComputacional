@@ -62,7 +62,10 @@ def prodPunto(v, w):
 
     return np.sum(v * w)
 
-# Labo01
+# ==============
+# LABORATORIO 01
+# ==============
+
 def error(x,y):
     """
     Calcula el error absoluto entre dos números x e y.
@@ -71,7 +74,118 @@ def error(x,y):
     """
     return np.abs(np.float64(x) - np.float64(y))
 
-# Labo03
+def error_relativo(x,y):
+    """
+    Recibe dos numeros x e y, y calcula el error relativo de aproximar x usando y en float64
+    """
+
+    div = np.abs(np.float64(y))
+    if div == 0:
+        return np.inf
+    return error(x, y) / div
+
+def matricesIguales(A, B, tol=None):
+    """    
+    Devuelve True si ambas matrices son iguales y False en otro caso.
+    Considerar que las matrices pueden tener distintas dimensiones, ademas de distintos valores
+    """
+    Ac = np.copy(A).astype(np.float64)
+    Bc = np.copy(B).astype(np.float64)
+
+    # Si no se especifica tolerancia, usar eps
+    if tol is None:
+        tol = np.finfo(np.float64).eps
+
+    if Ac.shape != Bc.shape: return False
+    for i in range(Ac.shape[0]):
+        for j in range(Ac.shape[1]):
+            if error(Ac[i][j], Bc[i][j]) > tol: return False
+    return True
+
+# ==============
+# LABORATORIO 02
+# ==============
+
+def rota (theta):
+    """
+    Retorna la matriz de rotación en 2D para un ángulo theta.
+    Recibe: theta: ángulo en radianes
+    Devuelve: matriz de rotación de tamaño (2 x 2)
+    """
+    R = np.array([[np.cos(theta), -np.sin(theta)],
+                  [np.sin(theta),  np.cos(theta)]], dtype=np.float64)
+
+    return R
+
+def escala(s):
+    """
+    Recibe una tira de numeros s y retorna una matriz cuadrada de
+    n x n , donde n es e l tamano de s .
+    La matriz escala la componente i de un vector de Rn en un factor s[i].
+    Recibe: s: tira de números de tamaño (n)
+    Devuelve: matriz de escala de tamaño (n x n)
+    """
+    n = len(s)
+    S = np.zeros((n, n), dtype=np.float64)
+
+    for i in range(n):
+        S[i, i] = s[i]
+
+    return S
+
+def rota_y_escala(theta, s):
+    """
+    Recibe un angulo theta y una tira de numeros s,
+    y retorna una matriz de 2x2 que rota el vector en un angulo theta
+    y luego lo escala en un factors
+    """
+    R = rota(theta)
+    S = escala(s)
+    return prodMat(S, R)
+
+def afin(theta, s, b):
+    """
+    Retorna una matriz de 3x3 que rota el vector en un angulo theta ,
+    luego lo escala en un factor s y por ultimo lo mueve en un valor
+    fijo b
+    Recibe: theta: angulo en radianes
+            s: tira de números de tamaño (2)
+            b: vector de tamaño (2)
+    Retorna: matriz de transformación afín de tamaño (3 x 3)
+    """
+    RS = rota_y_escala(theta, s)
+
+    M = np.zeros((3, 3), dtype=np.float64)
+    M[0:2, 0:2] = RS
+    M[0:2, 2] = b
+    M[2, 2] = 1.0
+    return M
+
+def trans_afin(v, theta, s, b):
+    """
+    Recibe un vector v (en R2), un angulo theta ,
+    una tira de numeros s ( en R2), y un vector b en R2.
+    Retorna el vector w resultante de aplicar la transformacion afin a v
+    """
+    # Convertir v
+    v_hom = np.array([v[0], v[1], 1.0], dtype=np.float64)
+
+    # Calcular la matriz de transformación afín
+    M = afin(theta, s, b)
+
+    # Aplicar la transformación
+    w_hom = aplicTrans(M, v_hom)
+
+    # Convertir de vuelta 
+    w = np.array([w_hom[0], w_hom[1]], dtype=np.float64)
+
+    return w
+
+
+# ==============
+# LABORATORIO 03
+# ==============
+
 def norma(x, p):
     """
     Calcula la norma p del vector x.
@@ -82,22 +196,129 @@ def norma(x, p):
     suma = 0
     #Caso en el que queremos calcular la norma infinito:
     if p == "inf":
-        return np.abs(np.array(x)).max()
+        maxim = -1
+        for i in range(x.shape[0]):
+            absxi = np.abs(x[i], dtype=np.float64)
+            if absxi > maxim:
+                maxim = absxi
+        return maxim
 
     #En otro caso, la norma que se quiere está definida por p:
-    xabs = np.abs(x)
+    xabs = np.abs(x, dtype=np.float64)
     suma = np.sum(xabs**p)
     return suma ** (1/p)
 
-def normaliza(X):
-    #Para cada fila de X, si la norma 2 de la fila no es 0, se la divide por la misma, es decir, se la normaliza.
-    for i in range(X.shape[0]):
-        normav = norma(X[i], p=2)
-        if (normav == 0): continue
-        X[i] /= normav
-    return X
+def normaliza(X, p):
+    """
+    Recibe X, una lista de vectores no vacios, y un escalar p . Devuelve
+    una lista conteniendo la norma p del vector correspondiente a
+    su posicion en X
+    """
+    normalizados = []
+    for x in X:
+        norma_val = norma(x, p)
+        if norma_val == 0:
+            normalizados.append(x)  # Evitar división por cero
+        else:
+            normalizados.append(x / norma_val)
+    return normalizados
+    
+def normaMatMC(A, q , p ,Np):
+    """
+    Devuelve la norma ||A|| \ {q , p} y e l vector x en e l cual se alcanza el maximo.
+    Recibe: A: matriz de tamaño (m x n)
+            q: entero positivo o "inf" para norma infinito
+            p: entero positivo o "inf" para norma infinito
+            Np: cantidad de iteraciones para aproximar la norma
+    """
+    # Toma Np vectores aleatorios de norma 1 en la p-norma
+    # Luego calcula Ax y su q-norma
+    m, n = A.shape
+    max_norm = -1
+    x_max = None
+    for _ in range(Np):
+        # Generar un vector aleatorio
+        x = np.random.rand(n)
+        # Normalizar el vector en la p-norma
+        x = x / norma(x, p)
+        # Calcular Ax
+        Ax = aplicTrans(A, x)
+        # Calcular la q-norma de Ax
+        norm_Ax = norma(Ax, q)
+        # Actualizar el máximo si es necesario
+        if norm_Ax > max_norm:
+            max_norm = norm_Ax
+            x_max = x
+    return max_norm, x_max
 
-# Labo04
+def normaExacta(A, p=[1, 'inf']):
+    """
+    Devuelve una tupla con la norma 1 y la norma infinito de A.
+    Recibe: A: matriz de tamaño (m x n)
+            p: entero positivo o "inf" para norma infinito
+    Devuelve: (norma 1 de A, norma infinito de A)
+    """
+    m, n = A.shape
+
+    if p not in [1, 'inf'] and p != [1, 'inf']:
+        return None
+
+    max_col_sum = -1
+    for j in range(n):
+        col_sum = 0
+        for i in range(m):
+            col_sum += np.abs(A[i, j], dtype=np.float64)
+        if col_sum > max_col_sum:
+            max_col_sum = col_sum
+
+    max_row_sum = -1
+    for i in range(m):
+        row_sum = 0
+        for j in range(n):
+            row_sum += np.abs(A[i, j], dtype=np.float64)
+        if row_sum > max_row_sum:
+            max_row_sum = row_sum
+
+    if p == 1:
+        return max_col_sum
+
+    elif p == 'inf':
+        return max_row_sum
+
+    else:
+        # Calcular ambas normas
+        return (max_col_sum, max_row_sum)
+
+def condMC(A, p, Np=1000):
+    """
+    Devuelve el numero de condicion de A usando la norma inducida p.
+    Np: cantidad de iteraciones para aproximar la norma (default 1000)
+    """
+    normaA = normaMatMC(A, p, p, Np)[0]
+    A_inv = inversa(A)
+    normaA_inv = normaMatMC(A_inv, p, p, Np)[0]
+    return normaA * normaA_inv
+
+def condExacta(A, p):
+    """
+    Devuelve el numero de condicion de A a partir de la formula
+    usando la norma p (1 o 'inf').
+    """
+    if p not in [1, 'inf']:
+        print("Norma no soportada para condicion exacta")
+        return None
+    
+    # Obtener norma directamente (no como lista)
+    normaA = normaExacta(A, p=p)
+    A_inv = inversa(A)
+    normaA_inv = normaExacta(A_inv, p=p)
+    
+    return normaA * normaA_inv
+
+# ==============
+# LABORATORIO 04
+# ==============
+
 def calculaLU(A):
     """
     Calcula la factorización LU de la matriz A y retorna las matrices L y U,
@@ -175,6 +396,7 @@ def res_tri(A, b, inferior=True):
 
     return X
 
+# EXTRA RESOLUCIÓN MATRICES
 def res_tri_matricial(A, B, inferior=True):
     """
     Resuelve el sistema L X = B, donde L es triangular.
@@ -213,6 +435,87 @@ def inversa(A):
         x = res_tri(U, y, inferior=False) # Ux = y
         A_inv[:, i] = x
     return A_inv
+
+def calculaLVD(A):
+    """
+        Calcula la factorizacion LDV de la matriz A, de forma tal que A =
+        LDV, con L triangular inferior , D diagonal y V triangular
+        superior . En caso de que la matriz no pueda factorizarse
+        retorna None.
+    """
+    A_LU = calculaLU(A)
+
+    if A_LU is None:
+        return None
+    
+    L, U, _ = A_LU
+
+    Ut_LU = calculaLU(U.T)
+    if Ut_LU is None:
+        return None
+    
+    Vt, D, _ = Ut_LU
+    
+    V = Vt.T
+
+    return L, D, V
+
+def esSDP(A):
+    """
+    Checkea si la matriz A es simetrica definida positiva (SDP) usando
+    la factorizacion LDV
+    Recibe: A: matriz cuadrada de tamaño (N x N)
+    Devuelve: True si A es SDP, False en otro caso
+    """
+    A_LDV = calculaLVD(A)
+    if A_LDV is None:
+        return False
+    
+    L, D, V = A_LDV
+    # Chequeo si L y V son transpuestas entre si
+    if matricesIguales(L, V.T) == False:
+        return False
+    
+    # Chequeo si D tiene todos sus elementos en la diagonal positivos
+    for i in range(D.shape[0]):
+        if D[i, i] <= 0:
+            return False
+        
+    return True
+    
+
+# EXTRA CHOLESKY
+def calculaCholesky(A):
+    """
+    Calcula la factorización de Cholesky A = L * L.T
+    Recibe: A: matriz simétrica definida positiva de tamaño (N x N)
+    Devuelve: L: matriz triangular inferior de tamaño (N x N)
+    """
+    # Usa la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
+
+    A = np.array(A, dtype=np.float64)
+
+    # Factorización LU
+    lu_res = calculaLU(A)
+
+    L, U, _ = lu_res
+
+    # Armamos la diagonal D
+    N = A.shape[0]
+    D = np.zeros((N, N))
+    for i in range(N):
+        D[i, i] = U[i, i]
+
+    L_chol = np.zeros(L.shape)
+    for i in range(N):
+        for j in range(i+1):
+            L_chol[i, j] = L[i, j] * np.sqrt(D[j, j])
+
+    return L_chol
+
+# ==============
+# LABORATORIO 05
+# ==============
 
 def QR_con_GS(A):
     """
@@ -331,34 +634,29 @@ def QR_con_HH_NP(A, tol=1e-12):
 
     return Q_red, R_red
 
-def calculaCholesky(A):
+def calculaQR(A, metodo='RH', tol=1e-12):
     """
-    Calcula la factorización de Cholesky A = L * L.T
-    Recibe: A: matriz simétrica definida positiva de tamaño (N x N)
-    Devuelve: L: matriz triangular inferior de tamaño (N x N)
+    Calcula la factorización QR de la matriz A usando el método especificado.
+    Si el método no es válido, retorna None.
+    Recibe: A: matriz de tamaño (m x n)
+            metodo: 'RH' para Householder, 'GS' para Gram-Schmidt
+            tol: tolerancia para filtrar elementos nulos en R
+    Devuelve: Q: matriz ortogonal de tamaño (m x n)
+              R: matriz triangular superior de tamaño (n x n)
     """
-    # Usa la factorización LU -> LDU, asumiendo que A es simétrica definida positiva.
 
-    A = np.array(A, dtype=np.float64)
+    if metodo == 'RH':
+        return QR_con_HH(A, tol)
+    elif metodo == 'GS':
+        return QR_con_GS(A)
+    else:
+        print("Método no válido. Use 'RH' para Householder o 'GS' para Gram-Schmidt.")
+        return None
 
-    # Factorización LU
-    lu_res = calculaLU(A)
 
-    L, U, _ = lu_res
-
-    # Armamos la diagonal D
-    N = A.shape[0]
-    D = np.zeros((N, N))
-    for i in range(N):
-        D[i, i] = U[i, i]
-
-    L_chol = np.zeros(L.shape)
-    for i in range(N):
-        for j in range(i+1):
-            L_chol[i, j] = L[i, j] * np.sqrt(D[j, j])
-
-    return L_chol
-
+# ==============
+# LABORATORIO 06
+# ==============
 
 # La k es 150 para controlar el tiempo de ejecución
 def metpot2k(A, tol=1e-15, K=150):
@@ -574,7 +872,9 @@ def diagRH_np(A, tol=1e-15, K=150):
     
     return S, D
 
-#labo08
+# ==============
+# LABORATORIO 08
+# ==============
 
 def svd_reducida(A, k='max', tol=1e-15):
     """
@@ -704,7 +1004,10 @@ def svd_reducida_np(A, k='max', tol=1e-15):
 
     return U, S, V
  
-# NUEVAS 
+
+# ==============
+# FUNCIONES EXTRA
+# ==============
 
 def cargarDataset(carpeta):
     train_cats = np.load(f'{carpeta}/train/cats/efficientnet_b3_embeddings.npy')
@@ -731,23 +1034,6 @@ def cargarDataset(carpeta):
 
     return X_train, Y_train, X_val, Y_val
 
-
-def matricesIguales(A, B, tol=None):
-    """    
-    Devuelve True si ambas matrices son iguales y False en otro caso.
-    """
-    Ac = np.copy(A).astype(np.float64)
-    Bc = np.copy(B).astype(np.float64)
-
-    # Si no se especifica tolerancia, usar eps
-    if tol is None:
-        tol = np.finfo(np.float64).eps
-
-    if Ac.shape != Bc.shape: return False
-    for i in range(Ac.shape[0]):
-        for j in range(Ac.shape[1]):
-            if error(Ac[i][j], Bc[i][j]) > tol: return False
-    return True
 
 def esPseudoInversa(X, pX, tol=1e-8):
     Xc = X.copy().astype(np.float64)
