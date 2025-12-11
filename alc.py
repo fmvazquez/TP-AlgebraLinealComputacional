@@ -495,6 +495,11 @@ def calculaCholesky(A):
 
     A = np.array(A, dtype=np.float64)
 
+    #Chequear simétrica definida positiva
+    if not esSDP(A):
+        print("No es simétrica definida positiva")
+        return None
+
     # Factorización LU
     lu_res = calculaLU(A)
 
@@ -573,7 +578,7 @@ def QR_con_HH(A, tol=1e-12):
 
         #Definimos e de modo que al restarlo de x genere la reflexión
         e = np.zeros_like(x)
-        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x, p=2)
 
         #Calculamos el vector de Householder
         u = x - e
@@ -583,12 +588,20 @@ def QR_con_HH(A, tol=1e-12):
             continue
 
         u = u / norma(u,p=2)
-        H = np.eye(m - k) - 2 * prodMat(np.expand_dims(u, axis=1), np.expand_dims(u, axis=0)) #Construimos la matriz de Householder H de tamaño reducido
-        H_moño = np.eye(m)
-        H_moño[k:, k:] = H #Insertamos H en la submatriz correspondiente
+        u_N = np.expand_dims(u, axis=0) # U en vector fila, matriz 1xN
+        u_T = np.expand_dims(u, axis=1) # U traspuesta (columna)
 
-        R = prodMat(H_moño, R) #Anulamos los elementos debajo de la diagonal
-        Q = prodMat(Q, H_moño)
+        #Aplicamos la reflexión a R para traingular
+        R_moño = R[k:,:]
+        proyeccion = prodMat(u_N, R_moño)
+        R_moño -= 2 * prodMat(u_T,proyeccion)
+        R[k:,:] = R_moño
+        
+        #Aplicamos la reflexión a Q (a la derecha)
+        Q_moño = Q[:, k:]
+        proyeccion_Q = prodMat(Q_moño,u_T)
+        Q_moño -= 2 * prodMat(proyeccion_Q, u_N)
+        Q[:, k:] = Q_moño
 
     #Tomamos la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
@@ -611,7 +624,7 @@ def QR_con_HH_NP(A, tol=1e-12):
 
         #Definimos e de modo que al restarlo de x genere la reflexión
         e = np.zeros_like(x)
-        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x)
+        e[0] = np.sign(x[0]) * norma(x,p=2) if x[0] != 0 else norma(x, p=2)
 
         #Calculamos el vector de Householder
         u = x - e
@@ -621,13 +634,21 @@ def QR_con_HH_NP(A, tol=1e-12):
             continue
 
         u = u / norma(u,p=2)
-        H = np.eye(m - k) - 2 * (np.expand_dims(u, axis=1) @ np.expand_dims(u, axis=0)) #Construimos la matriz de Householder H de tamaño reducido
-        H_moño = np.eye(m)
-        H_moño[k:, k:] = H #Insertamos H en la submatriz correspondiente
+        u_N = np.expand_dims(u, axis=0) # U en vector fila, matriz 1xN
+        u_T = np.expand_dims(u, axis=1) # U traspuesta (columna)
 
-        R = H_moño @ R #Anulamos los elementos debajo de la diagonal
-        Q = Q @ H_moño
-
+        #Aplicamos la reflexión a R para traingular
+        R_moño = R[k:,:]
+        proyeccion = u_N @ R_moño
+        R_moño -= 2 * (u_T @ proyeccion)
+        R[k:,:] = R_moño
+        
+        #Aplicamos la reflexión a Q (a la derecha)
+        Q_moño = Q[:, k:]
+        proyeccion_Q = Q_moño @ u_T
+        Q_moño -= 2 * (proyeccion_Q @ u_N)
+        Q[:, k:] = Q_moño
+        
     #Tomamos la desc de Q R reducida
     Q_red = Q[:, :n]  # Tomar solo las primeras n columnas de Q
     R_red = R[:n, :]  # Tomar solo las primeras n filas de R
@@ -1097,6 +1118,7 @@ def pinvEcuacionesNormales(X, L, Y):
     if N == M:
         pX = inversa(Xc)
         W = prodMat(Yc, pX)
+        return W
     else:
         if N > M:
             B = Xc.T
