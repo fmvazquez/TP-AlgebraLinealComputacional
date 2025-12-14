@@ -425,7 +425,10 @@ def inversa(A):
     Devuelve: A_inv: matriz inversa de tamaño (n x n) o None si no es invertible
     """
     # Calcula la inversa de la matriz A usando la factorización LU
-    L, U, _ = calculaLU(A)
+    facLU = calculaLU(A)
+    if facLU is None : return None
+
+    L, U, _ = facLU
     A_inv = np.zeros(A.shape)
     I = np.eye(A.shape[0])
 
@@ -436,7 +439,7 @@ def inversa(A):
         A_inv[:, i] = x
     return A_inv
 
-def calculaLVD(A):
+def calculaLDV(A):
     """
         Calcula la factorizacion LDV de la matriz A, de forma tal que A =
         LDV, con L triangular inferior , D diagonal y V triangular
@@ -460,25 +463,27 @@ def calculaLVD(A):
 
     return L, D, V
 
-def esSDP(A):
+def esSDP(A, atol=1e-10):
     """
     Checkea si la matriz A es simetrica definida positiva (SDP) usando
     la factorizacion LDV
     Recibe: A: matriz cuadrada de tamaño (N x N)
     Devuelve: True si A es SDP, False en otro caso
     """
-    A_LDV = calculaLVD(A)
+
+    # Chequeo simetría
+    if not matricesIguales(A, A.T, atol):
+        return False
+
+    A_LDV = calculaLDV(A)
     if A_LDV is None:
         return False
     
     L, D, V = A_LDV
-    # Chequeo si L y V son transpuestas entre si
-    if matricesIguales(L, V.T) == False:
-        return False
     
     # Chequeo si D tiene todos sus elementos en la diagonal positivos
     for i in range(D.shape[0]):
-        if D[i, i] <= 0:
+        if D[i, i] <= atol:
             return False
         
     return True
@@ -495,7 +500,7 @@ def calculaCholesky(A):
 
     A = np.array(A, dtype=np.float64)
 
-    #Chequear simétrica definida positiva
+    # Chequear simétrica definida positiva
     if not esSDP(A):
         print("No es simétrica definida positiva")
         return None
